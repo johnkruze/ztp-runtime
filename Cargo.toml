@@ -1,0 +1,16 @@
+[package]
+name = "ztp-runtime"
+version = "1.0.0"
+edition = "2021"
+authors = ["Kruze <kruze@zerotrustphysics.com>"]
+description = "Layer 0 Physical Firewall and High-Throughput Simulation Engine"
+
+[dependencies]
+# Zero dependencies. Pure Rust standard library only.
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = 'abort'
+strip = true
