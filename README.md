@@ -181,4 +181,6 @@ Dual-licensed under [MIT](LICENSE-MIT) and [Apache 2.0](LICENSE-APACHE).
 
 ---
 
-Part of the [G^G Physics](https://github.com/johnkruze/gg-physics) framework · [zerotrustphysics.com](https://zerotrustphysics.com)
+Part of the [G^G Physics](https://github.com/johnkruze/gg-physics) framework · [genesis-core](https://github.com/johnkruze/genesis-core) · [HuggingFace dataset](https://huggingface.co/datasets/johnkruze/gg-physical-ground-truth) · [zerotrustphysics.com](https://zerotrustphysics.com)
+
+*John Kruze · [LinkedIn](https://www.linkedin.com/in/john-kruze-34a6683a5/)*
