@@ -8,6 +8,10 @@ description = "Layer 0 Physical Firewall and High-Throughput Simulation Engine"
 [dependencies]
 # Zero dependencies. Pure Rust standard library only.
 
+[lib]
+name = "ztp_runtime"
+crate-type = ["cdylib", "rlib"]
+
 [profile.release]
 opt-level = 3
 lto = true
