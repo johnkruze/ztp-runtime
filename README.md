@@ -4,7 +4,7 @@
 
 `ztp-runtime` is an embeddable physics runtime with no external crate dependencies. It compiles against the Rust standard library only, with aggressive bare-metal optimization profiles. Designed for direct integration into GNC frameworks and real-time control loops where corpus infrastructure overhead is irrelevant — only the physics matters.
 
-This is the kernel layer of the [G^G physics engine](https://github.com/johnkruze/gg-physics). The full corpus pipeline (SHA-256 proof chains, Parquet export, trajectory management) lives in genesis-core. This repo exposes the raw solvers as a C-compatible FFI library.
+This is the kernel layer of the [G^G physics engine](https://github.com/johnkruze/genesis-core). The full corpus pipeline (SHA-256 proof chains, Parquet export, trajectory management) lives in genesis-core. This repo exposes the raw solvers as a C-compatible FFI library.
 
 ---
 
@@ -181,6 +181,6 @@ Dual-licensed under [MIT](LICENSE-MIT) and [Apache 2.0](LICENSE-APACHE).
 
 ---
 
-Part of the [G^G Physics](https://github.com/johnkruze/gg-physics) framework · [genesis-core](https://github.com/johnkruze/genesis-core) · [HuggingFace dataset](https://huggingface.co/datasets/johnkruze/gg-physical-ground-truth) · [zerotrustphysics.com](https://zerotrustphysics.com)
+Part of the [G^G Physics](https://github.com/johnkruze/genesis-core) framework · [genesis-core](https://github.com/johnkruze/genesis-core) · [HuggingFace dataset](https://huggingface.co/datasets/spiderpilot89/gg-physical-ground-truth) · [zerotrustphysics.com](https://zerotrustphysics.com)
 
 *John Kruze · [LinkedIn](https://www.linkedin.com/in/john-kruze-34a6683a5/)*
