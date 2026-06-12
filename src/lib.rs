@@ -441,7 +441,10 @@ pub extern "C" fn ztp_mars_step(
 }
 
 // Expose Dexterous Tactile Grasp FFI wrappers
-pub use crate::domains::dexterous::{C_TactileArray, C_GraspState, C_GraspResult};
+pub use crate::domains::dexterous::{
+    C_TactileArray, C_GraspState, C_GraspResult, C_SurgicalTissueAuditor,
+    C_SurgicalResult, C_MicroReleaseAuditor, C_MicroResult,
+};
 
 #[no_mangle]
 pub extern "C" fn ztp_dexterous_evaluate_grasp(
@@ -461,6 +464,42 @@ pub extern "C" fn ztp_dexterous_evaluate_grasp(
     }
     unsafe {
         crate::domains::dexterous::evaluate_grasp_dynamics(&*sensor_data, &mut *state, dt)
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ztp_surgical_evaluate_grasp(
+    auditor: *const C_SurgicalTissueAuditor,
+    dt: f32,
+) -> C_SurgicalResult {
+    if auditor.is_null() {
+        return C_SurgicalResult {
+            tissue_overstress_detected: false,
+            viscoelastic_rupture_detected: false,
+            cable_slip_fault: false,
+            clamped_force: 0.0,
+        };
+    }
+    unsafe {
+        crate::domains::dexterous::evaluate_surgical_grasp_dynamics(&*auditor, dt)
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ztp_micro_evaluate_release(
+    auditor: *const C_MicroReleaseAuditor,
+    dt: f32,
+) -> C_MicroResult {
+    if auditor.is_null() {
+        return C_MicroResult {
+            release_stiction_active: false,
+            electrostatic_charge_violation: false,
+            piezo_shake_trigger: false,
+            safe_to_retract: false,
+        };
+    }
+    unsafe {
+        crate::domains::dexterous::evaluate_micro_release_dynamics(&*auditor, dt)
     }
 }
 
