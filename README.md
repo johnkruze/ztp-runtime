@@ -162,6 +162,63 @@ C_HandshakeResult ztp_atheric_handshake(
 
 ---
 
+## Surgical & Micro-Manufacturing Domains
+
+Two additional FFI domains for medical robotics and micro-assembly:
+
+```c
+typedef struct {
+    uint32_t tissue_type_id;      // 0=Liver/Spleen, 1=Bowel/Vessel, 2=Bone/Tendon
+    float    max_tearing_force_n;
+    float    measured_displacement_m;
+    float    measured_force_n;
+    float    relaxation_tau;
+    float    last_displacement_m;
+    float    last_force_n;
+    float    accumulated_energy_j;
+} C_SurgicalTissueAuditor;
+
+typedef struct {
+    bool  tissue_overstress_detected;  // Force exceeds tissue-type safe limit
+    bool  viscoelastic_rupture_detected; // Stiffness collapse during active compression
+    bool  cable_slip_fault;            // Jaw open but near-zero force
+    float clamped_force;               // ZTP-enforced force ceiling (N)
+} C_SurgicalResult;
+
+typedef struct {
+    float part_mass_micrograms;
+    float pull_off_force_un;              // Capillary stiction tension (μN)
+    float jaw_separation_um;             // Jaw opening (μm)
+    float dynamic_electrostatic_charge_v; // Surface charge (V)
+    float last_jaw_separation_um;
+} C_MicroReleaseAuditor;
+
+typedef struct {
+    bool release_stiction_active;       // Liquid capillary bridge holding part
+    bool electrostatic_charge_violation; // Charge > 150V — ESD risk
+    bool piezo_shake_trigger;           // Dispatch high-freq vibration to break bridge
+    bool safe_to_retract;               // Cleared for arm retraction
+} C_MicroResult;
+
+C_SurgicalResult ztp_surgical_evaluate_grasp(
+    const C_SurgicalTissueAuditor* auditor, float dt
+);
+
+C_MicroResult ztp_micro_evaluate_release(
+    const C_MicroReleaseAuditor* auditor, float dt
+);
+```
+
+**Tissue force limits (enforced by ZTP, not software-commanded):**
+
+| Tissue Type | ID | Max Force |
+|-------------|:--:|:---------:|
+| Liver / Spleen | 0 | 1.2 N |
+| Bowel / Vessel | 1 | 2.5 N |
+| Bone / Tendon | 2 | 40.0 N |
+
+---
+
 ## Cargo.toml Profile
 
 ```toml
