@@ -197,7 +197,7 @@ The library is loaded inside `ztp_bridge.py` using `ctypes.CDLL()`. It searches 
 import ctypes
 import os
 
-lib_path = "/Users/aijesusbro/Spectrum/ztp-runtime/target/release/libztp_runtime.dylib"
+lib_path = os.path.abspath("ztp-runtime/target/release/libztp_runtime.dylib")
 lib = ctypes.CDLL(lib_path)
 ```
 
