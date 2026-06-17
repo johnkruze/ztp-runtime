@@ -1,10 +1,10 @@
-# ztp-runtime
+# Somatic Physics Grounding (SPG) Runtime
 
-**Zero-dependency bare-metal physics kernel. C-compatible FFI. Pure Rust standard library.**
+**Zero-dependency bare-metal somatic integration kernel. C-compatible FFI. Pure Rust standard library.**
 
-`ztp-runtime` is an embeddable physics runtime with no external crate dependencies. It compiles against the Rust standard library only, with aggressive bare-metal optimization profiles. Designed for direct integration into GNC frameworks and real-time control loops where corpus infrastructure overhead is irrelevant — only the physics matters.
+`ztp-runtime` is an embeddable somatic grounding runtime with no external crate dependencies. It compiles against the Rust standard library only, with aggressive bare-metal optimization profiles. Designed for direct integration into GNC frameworks and real-time control loops to serve as a low-latency physical reflex layer where corpus infrastructure overhead is irrelevant — only the physics matters.
 
-This is the kernel layer of the [G^G physics engine](https://github.com/johnkruze/genesis-core). The full corpus pipeline (SHA-256 proof chains, Parquet export, trajectory management) lives in genesis-core. This repo exposes the raw solvers as a C-compatible FFI library.
+This is the kernel layer of the [G^G somatic grounding engine](https://github.com/johnkruze/genesis-core). The full corpus pipeline (SHA-256 proof chains, Parquet export, trajectory management) lives in genesis-core. This repo exposes the raw solvers as a C-compatible FFI library.
 
 ---
 
