@@ -3,7 +3,7 @@ name = "ztp-runtime"
 version = "1.0.0"
 edition = "2021"
 authors = ["Kruze <kruze@zerotrustphysics.com>"]
-description = "Layer 0 Physical Firewall and High-Throughput Simulation Engine"
+description = "Layer 0 Somatic Grounding Engine and High-Throughput Simulation Kernel"
 
 [dependencies]
 # Zero dependencies. Pure Rust standard library only.

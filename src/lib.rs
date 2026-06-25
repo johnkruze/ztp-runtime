@@ -527,6 +527,72 @@ pub extern "C" fn ztp_directed_energy_step(
         crate::domains::directed_energy::step_directed_energy(&mut *state, y_meas, history, apply_ztp, dt)
     }
 }
+// Expose Drone Flight & VSLAM Coherence FFI wrappers
+pub use crate::domains::drone::{C_DroneState, C_DroneResult};
+
+#[no_mangle]
+pub extern "C" fn ztp_drone_step(
+    state: *mut C_DroneState,
+    vslam_vel_x: f64,
+    vslam_vel_y: f64,
+    vslam_vel_z: f64,
+    vslam_vel_prev_x: f64,
+    vslam_vel_prev_y: f64,
+    vslam_vel_prev_z: f64,
+    coherence_threshold: f64,
+    dt: f64,
+) -> C_DroneResult {
+    if state.is_null() {
+        return C_DroneResult {
+            imu_acceleration: [0.0; 3],
+            true_acceleration: [0.0; 3],
+            coherence_residual: 0.0,
+            coherence_fail: false,
+        };
+    }
+    unsafe {
+        let vslam_vel = [vslam_vel_x, vslam_vel_y, vslam_vel_z];
+        let vslam_vel_prev = [vslam_vel_prev_x, vslam_vel_prev_y, vslam_vel_prev_z];
+        crate::domains::drone::step_drone_dynamics(
+            &mut *state,
+            vslam_vel,
+            vslam_vel_prev,
+            dt,
+            coherence_threshold,
+        )
+    }
+}
+
+// Expose BlueROV2 Marine FFI wrappers
+pub use crate::domains::bluerov::{C_BlueRovState, C_BlueRovResult};
+
+#[no_mangle]
+pub extern "C" fn ztp_bluerov_step(
+    state: *mut C_BlueRovState,
+    nav_vel_x: f64,
+    nav_vel_y: f64,
+    nav_vel_z: f64,
+    coherence_threshold: f64,
+    dt: f64,
+) -> C_BlueRovResult {
+    if state.is_null() {
+        return C_BlueRovResult {
+            imu_acceleration: [0.0; 3],
+            true_acceleration: [0.0; 3],
+            coherence_residual: 0.0,
+            coherence_fail: false,
+        };
+    }
+    unsafe {
+        let nav_vel = [nav_vel_x, nav_vel_y, nav_vel_z];
+        crate::domains::bluerov::step_bluerov_dynamics(
+            &mut *state,
+            nav_vel,
+            coherence_threshold,
+            dt,
+        )
+    }
+}
 
 
 // ─── UNIT TESTS ──────────────────────────────────────────────────
@@ -563,4 +629,83 @@ mod tests {
             "248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1"
         );
     }
+
+    #[test]
+    fn test_drone_coherence() {
+        use super::{C_DroneState, ztp_drone_step};
+        let mut state = C_DroneState {
+            position: [0.0, 0.0, 5.0],
+            velocity: [0.0, 0.0, 0.0],
+            pitch_roll_yaw: [0.0, 0.0, 0.0],
+            motor_rpm: [0.5, 0.5, 0.5, 0.5],
+            wind_velocity: [0.0, 0.0, 0.0],
+            mass: 1.5,
+            drag_coefficient: 0.15,
+            max_thrust: 30.0,
+        };
+
+        // Nominal step (no visual drift)
+        let result = ztp_drone_step(
+            &mut state,
+            0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0,
+            1.5,
+            0.001,
+        );
+
+        assert!(result.coherence_residual < 1.0);
+        assert!(!result.coherence_fail);
+
+        // Anomalous visual drift (VSLAM reports a sudden 10m/s shift in 1ms)
+        let result_fail = ztp_drone_step(
+            &mut state,
+            10.0, 0.0, 0.0,
+            0.0, 0.0, 0.0,
+            1.5,
+            0.001,
+        );
+        assert!(result_fail.coherence_residual > 100.0);
+        assert!(result_fail.coherence_fail);
+    }
+
+    #[test]
+    fn test_bluerov_coherence() {
+        use super::{C_BlueRovState, ztp_bluerov_step};
+        let mut state = C_BlueRovState {
+            position: [0.0, 0.0, -10.0],
+            velocity: [1.5, 0.0, 0.0],
+            pitch_roll_yaw: [0.0, 0.0, 0.0],
+            thruster_commands: [0.5, 0.5, 0.5, 0.5, 0.0, 0.0],
+            current_velocity: [0.0, 0.0, 0.0],
+            mass: 11.0,
+            volume: 0.011,
+            drag_coefficients: [0.07, 0.15, 0.20],
+            max_thrust_horizontal: 100.0,
+            max_thrust_vertical: 100.0,
+            tether_anchor: [0.0, 0.0, 0.0],
+            tether_length: 50.0,
+            tether_k: 0.0,
+        };
+
+        // Nominal step (claimed velocity matches actual velocity)
+        let result = ztp_bluerov_step(
+            &mut state,
+            1.5, 0.0, 0.0,
+            0.15,
+            0.001,
+        );
+        assert!(result.coherence_residual < 0.1);
+        assert!(!result.coherence_fail);
+
+        // Anomaly step (claimed velocity is 5.0m/s which diverges, causing drag mismatch)
+        let result_fail = ztp_bluerov_step(
+            &mut state,
+            5.0, 0.0, 0.0,
+            0.15,
+            0.001,
+        );
+        assert!(result_fail.coherence_residual > 0.5);
+        assert!(result_fail.coherence_fail);
+    }
 }
+

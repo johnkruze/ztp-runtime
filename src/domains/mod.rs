@@ -4,4 +4,7 @@ pub mod atheric;
 pub mod mars;
 pub mod dexterous;
 pub mod directed_energy;
+pub mod drone;
+pub mod bluerov;
+
 
