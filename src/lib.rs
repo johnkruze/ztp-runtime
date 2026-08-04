@@ -594,6 +594,108 @@ pub extern "C" fn ztp_bluerov_step(
     }
 }
 
+// Expose Biological Compounding FFI wrappers
+pub use crate::domains::compounding::{
+    C_OstwaldDeWaeleFluid, C_NoyesWhitneySolver, C_SomaticVagalBridge, C_BiologicalState, FkppNode,
+};
+
+#[no_mangle]
+pub extern "C" fn ztp_compounding_fkpp_step(
+    concentrations: *mut f32,
+    diffusions: *const f32,
+    replications: *const f32,
+    num_nodes: u32,
+    dx: f32,
+    dt: f32,
+    next_concentrations: *mut f32,
+) {
+    if concentrations.is_null() || diffusions.is_null() || replications.is_null() || next_concentrations.is_null() || num_nodes < 3 {
+        return;
+    }
+    unsafe {
+        let conc_slice = std::slice::from_raw_parts_mut(concentrations, num_nodes as usize);
+        let diff_slice = std::slice::from_raw_parts(diffusions, num_nodes as usize);
+        let rep_slice = std::slice::from_raw_parts(replications, num_nodes as usize);
+        let next_conc_slice = std::slice::from_raw_parts_mut(next_concentrations, num_nodes as usize);
+        
+        crate::domains::compounding::step_fkpp_propagation(
+            conc_slice,
+            diff_slice,
+            rep_slice,
+            dx,
+            dt,
+            next_conc_slice,
+        );
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ztp_compounding_compute_viscosity(
+    fluid: *mut C_OstwaldDeWaeleFluid,
+    shear_rate: f32,
+) -> f32 {
+    if fluid.is_null() {
+        return 0.0;
+    }
+    unsafe {
+        (*fluid).compute_viscosity(shear_rate)
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ztp_compounding_audit_shear(
+    fluid: *const C_OstwaldDeWaeleFluid,
+) -> bool {
+    if fluid.is_null() {
+        return false;
+    }
+    unsafe {
+        (*fluid).audit_shear_limit()
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ztp_compounding_compute_dissolution_rate(
+    solver: *mut C_NoyesWhitneySolver,
+    current_concentration: f32,
+    fluid_shear_rate: f32,
+) -> f32 {
+    if solver.is_null() {
+        return 0.0;
+    }
+    unsafe {
+        (*solver).compute_dissolution_rate(current_concentration, fluid_shear_rate)
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ztp_compounding_update_autonomic_tone(
+    bridge: *mut C_SomaticVagalBridge,
+    mechanical_chewing_pa: f32,
+    diaphragmatic_pressure_pa: f32,
+) -> f32 {
+    if bridge.is_null() {
+        return 0.0;
+    }
+    unsafe {
+        (*bridge).update_autonomic_tone(mechanical_chewing_pa, diaphragmatic_pressure_pa)
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ztp_compounding_seal_state(
+    state: *mut C_BiologicalState,
+    out_hash: *mut u8,
+) {
+    if state.is_null() || out_hash.is_null() {
+        return;
+    }
+    unsafe {
+        let hash = (*state).seal_state();
+        std::ptr::copy_nonoverlapping(hash.as_ptr(), out_hash, 32);
+    }
+}
+
 
 // ─── UNIT TESTS ──────────────────────────────────────────────────
 

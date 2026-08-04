@@ -6,5 +6,6 @@ pub mod dexterous;
 pub mod directed_energy;
 pub mod drone;
 pub mod bluerov;
+pub mod compounding;
 
 
