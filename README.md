@@ -1,243 +1,111 @@
-# Somatic Physics Grounding (SPG) Runtime
+# ztp-runtime
 
-**Zero-dependency bare-metal somatic integration kernel. C-compatible FFI. Pure Rust standard library.**
+**Zero-dependency bare-metal physics kernel · C FFI · Pure Rust stdlib**
 
-`ztp-runtime` is an embeddable somatic grounding runtime with no external crate dependencies. It compiles against the Rust standard library only, with aggressive bare-metal optimization profiles. Designed for direct integration into GNC frameworks and real-time control loops to serve as a low-latency physical reflex layer where corpus infrastructure overhead is irrelevant — only the physics matters.
+Edge Layer 0 for Zero-Trust Physics: project commands onto physical invariants inside real-time loops. No crate dependencies. Compiles to a C-compatible dynamic library for GNC stacks and Python `ctypes`.
 
-This is the kernel layer of the [G^G somatic grounding engine](https://github.com/johnkruze/genesis-core). The full corpus pipeline (SHA-256 proof chains, Parquet export, trajectory management) lives in genesis-core. This repo exposes the raw solvers as a C-compatible FFI library.
+Sibling of [genesis-core](https://github.com/johnkruze/genesis-core) (Monte Carlo / sealed trajectory banks). This crate is the thin embeddable reflex kernel only.
+
+[zerotrustphysics.com](https://zerotrustphysics.com) · [spiderpilot89](https://huggingface.co/spiderpilot89)
 
 ---
 
-## Repository Structure
+## Layout
 
 ```
 ztp-runtime/
-├── Cargo.toml            # Zero-dependency release profiles
+├── Cargo.toml
 ├── README.md
-├── LICENSE-APACHE
-├── LICENSE-MIT
-└── src/
-    ├── main.rs           # Benchmark runner
-    ├── lib.rs            # C-compatible API declarations
-    └── domains/
-        ├── terran.rs     # Soil mechanics & robot contact
-        ├── orbital.rs    # 20D relativistic attitude tracker
-        └── atheric.rs    # RF coherence & channel hopping
+├── src/
+│   ├── lib.rs          # RNG, zero-dep SHA-256 / ProofChain, C exports
+│   ├── main.rs         # Microbench runner
+│   └── domains/        # Physics modules
+└── target/release/
+    └── libztp_runtime.*
 ```
 
 ---
 
-## Physics Domains
+## Domains
 
-### Terran — Soil Mechanics & Robot Contact
+| Domain | Module | What it models |
+|--------|--------|----------------|
+| Terran | `domains/terran.rs` | Boussinesq soil stress, moisture / glomalin, robot contact |
+| Orbital | `domains/orbital.rs` | 6DOF translation + quaternion attitude, zonal harmonics |
+| Atheric | `domains/atheric.rs` | Friis path loss, Shannon capacity, cryptographic hop seed |
+| Mars EDL | `domains/mars.rs` | CO₂ atmosphere, drag, retro-propulsion step |
+| Dexterous | `domains/dexterous.rs` | Tactile grasp, surgical tissue auditor, micro-release |
+| Directed energy | `domains/directed_energy.rs` | Gimbal / jitter integration step |
+| Drone | `domains/drone.rs` | Multirotor dynamics step |
+| Subsea ROV | `domains/bluerov.rs` | Underwater ROV dynamics step |
+| Compounding | `domains/compounding.rs` | FKPP, Ostwald–de Waele viscosity, Noyes–Whitney dissolution, autonomic tone, state seal |
 
-Models the physical boundary conditions of soil compaction and seed germination under robot/vehicle contact. Stress distribution governed by **Boussinesq's half-space equation (1885)**.
-
-For a point load $P$ at the surface, vertical stress $\sigma_z$ at depth $z$ and radial distance $r$:
-
-$$\sigma_z(r, z) = \frac{3P}{2\pi} \frac{z^3}{(r^2 + z^2)^{5/2}}$$
-
-For distributed contact footprints, integrated over circular equivalent area $R = \sqrt{A/\pi}$ via Newmark's formula:
-
-$$\sigma_z(0, z) = P_0 \left[ 1 - \frac{z^3}{(R^2 + z^2)^{3/2}} \right]$$
-
-Effective yield stress couples moisture $\theta$ and glomalin $G$ (mycorrhizal glycoprotein):
-
-$$\sigma_{\text{yield}} = \left( \sigma_{\text{base}} + G \cdot c_{\text{glomalin}} \right) \cdot f(\theta)$$
-
-$$\Delta C = \min\left( 0.1 \cdot \frac{\sigma_z - \sigma_{\text{yield}}}{\sigma_{\text{yield}}},\ 0.5 \right) \quad \text{for } \sigma_z > \sigma_{\text{yield}}$$
+Internal utilities in `lib.rs`: deterministic LCG PRNG; hand-rolled SHA-256 and proof sealing (no `sha2` crate).
 
 ---
 
-### Orbital — 20D Relativistic Dynamics
-
-Integrates a 20-dimensional state vector: position, velocity, quaternion attitude, angular velocity, and inertia tensor components.
-
-**Translational dynamics** — Yoshida 4th-order symplectic integration with $J_2$–$J_4$ zonal harmonics and first-order Post-Newtonian relativistic corrections:
-
-$$\mathbf{a} = -\frac{\mu}{r^3}\mathbf{r} + \mathbf{a}_{\text{zonal}} + \mathbf{a}_{\text{1PN}}$$
-
-Gravitational potential with zonal harmonics:
-
-$$V(r, \phi) = \frac{\mu}{r} \left[ 1 - \sum_{n=2}^{4} J_n \left(\frac{R_{\text{eq}}}{r}\right)^n P_n(\sin\phi) \right]$$
-
-First-order Post-Newtonian correction:
-
-$$\mathbf{a}_{\text{1PN}} = \frac{\mu}{c^2 r^3} \left[ \left( \frac{4\mu}{r} - v^2 \right) \mathbf{r} + 4(\mathbf{r} \cdot \mathbf{v})\mathbf{v} \right]$$
-
-**Rotational dynamics** — Euler equations with quaternion kinematics:
-
-$$\mathbf{I}\dot{\boldsymbol{\omega}} = \boldsymbol{\tau}_{\text{ext}} - \boldsymbol{\omega} \times (\mathbf{I}\boldsymbol{\omega})$$
-
-$$\dot{\mathbf{q}} = \frac{1}{2} \mathbf{q} \otimes \begin{bmatrix} 0 \\ \boldsymbol{\omega} \end{bmatrix}$$
-
----
-
-### Atheric — RF Coherence & Cryptographic Channel Hopping
-
-Evaluates electromagnetic path loss under broadband interference, multipath fading, and active jammer profiles.
-
-**Friis transmission equation:**
-
-$$P_r = P_t \cdot \left( \frac{\lambda}{4\pi d} \right)^2 \cdot \gamma_{\text{fading}}$$
-
-**Shannon channel capacity:**
-
-$$C = B \log_2\!\left(1 + \text{SNR}_{\text{linear}}\right)$$
-
-$$\text{SNR}_{\text{linear}} = \frac{P_r \cdot \gamma_{\text{fading}}}{N_0 + I_{\text{jammer}}}$$
-
-**Cryptographic channel hopping** — SHA-256 seeded sequence, decoupled from predictable patterns:
-
-$$k = \text{SHA256}(\text{seed} \parallel \text{index}) \bmod N$$
-
-Clock drift desynchronization ($\Delta t \neq 0$) collapses from $N$-channel capacity to $1/N$ random hit probability.
-
----
-
-## Benchmark
-
-Bare-metal kernel speed — physics computation only, no SHA-256 corpus sealing, no Parquet I/O, no trajectory management. This is the RT integration rate available to a GNC framework calling into the FFI layer.
+## Build
 
 ```bash
-cargo run --release
+cargo build --release
+cargo run --release          # microbench (terran / orbital / atheric)
 ```
 
-*Apple Silicon M-series, macOS*
+Artifacts:
 
-| Domain | Physics | Kernel Speed | RT Headroom at 1 kHz |
-|--------|---------|:------------:|:--------------------:|
-| Terran | Boussinesq soil mechanics | 131,314,021 /s | 131,314× |
-| Orbital | 20D relativistic 6DOF + attitude | 8,634,335 /s | 8,634× |
-| Atheric | RF Shannon capacity + SHA-256 hopping | 6,102,641 /s | 6,102× |
+| Platform | Library |
+|----------|---------|
+| macOS | `target/release/libztp_runtime.dylib` |
+| Linux | `target/release/libztp_runtime.so` |
+| Windows | `target/release/ztp_runtime.dll` |
 
-The full genesis-core corpus pipeline (SHA-256 sealed, Parquet export) runs Terran at ~10,750/s. The difference is the overhead of cryptographic proof chains and columnar serialization — irrelevant inside a real-time loop.
+`Cargo.toml` release profile: `opt-level=3`, LTO, `codegen-units=1`, `panic=abort`, strip.
 
 ---
 
-## C-Compatible FFI
+## C FFI index
 
-Direct C-linkage integration into legacy GNC stacks (C++, Python ctypes, Ada).
+All entry points are `#[no_mangle] extern "C"` in `src/lib.rs`. Load the dylib and call by name (or bind headers from these signatures).
 
-```c
-typedef struct {
-    double max_compaction;
-    double compaction_depth_m;
-} C_SoilResult;
+| Export | Domain |
+|--------|--------|
+| `ztp_terran_evaluate_contact` | Terran soil contact |
+| `ztp_orbital_step_6dof` | Orbital translation |
+| `ztp_orbital_step_attitude` | Orbital attitude |
+| `ztp_atheric_handshake` | RF coherence handshake |
+| `ztp_mars_step` | Mars EDL step |
+| `ztp_dexterous_evaluate_grasp` | Tactile grasp |
+| `ztp_surgical_evaluate_grasp` | Surgical force ceiling |
+| `ztp_micro_evaluate_release` | Micro-assembly release |
+| `ztp_directed_energy_step` | Directed-energy gimbal |
+| `ztp_drone_step` | Drone step |
+| `ztp_bluerov_step` | Subsea ROV step |
+| `ztp_compounding_fkpp_step` | Compounding FKPP |
+| `ztp_compounding_compute_viscosity` | Ostwald–de Waele |
+| `ztp_compounding_audit_shear` | Shear audit |
+| `ztp_compounding_compute_dissolution_rate` | Noyes–Whitney |
+| `ztp_compounding_update_autonomic_tone` | Autonomic tone |
+| `ztp_compounding_seal_state` | State seal |
 
-typedef struct {
-    double position[3];
-    double velocity[3];
-    double quaternion_attitude[4];
-    double angular_velocity[3];
-    double inertia_tensor[9];
-} C_SatelliteState;
+Structs are `#[repr(C)]` next to each export in `lib.rs` / domain modules. That source is the authoritative ABI.
 
-typedef struct {
-    bool    success;
-    double  resonance;
-    double  avg_snr_db;
-} C_HandshakeResult;
-
-// Entry points
-C_SoilResult ztp_terran_evaluate_contact(
-    int soil_type_code, double moisture, double glomalin_mg_g,
-    double compaction, unsigned int depth_layers,
-    double mass_kg, double footprint_m2, int locomotion_code
-);
-
-void ztp_orbital_step_6dof(C_SatelliteState* state, double dt);
-
-void ztp_orbital_step_attitude(
-    C_SatelliteState* state,
-    double ext_torque_x, double ext_torque_y, double ext_torque_z,
-    double dt
-);
-
-C_HandshakeResult ztp_atheric_handshake(
-    const unsigned char* seed_bytes,  // 32-byte SHA-256 seed
-    double strength, double distance_km
-);
-```
+**Python:** load `libztp_runtime` via `ctypes` with matching `Structure` layouts (see sibling [zero-trust-physics](https://github.com/johnkruze/zero-trust-physics) loaders).
 
 ---
 
-## Surgical & Micro-Manufacturing Domains
+## Design notes
 
-Two additional FFI domains for medical robotics and micro-assembly:
-
-```c
-typedef struct {
-    uint32_t tissue_type_id;      // 0=Liver/Spleen, 1=Bowel/Vessel, 2=Bone/Tendon
-    float    max_tearing_force_n;
-    float    measured_displacement_m;
-    float    measured_force_n;
-    float    relaxation_tau;
-    float    last_displacement_m;
-    float    last_force_n;
-    float    accumulated_energy_j;
-} C_SurgicalTissueAuditor;
-
-typedef struct {
-    bool  tissue_overstress_detected;  // Force exceeds tissue-type safe limit
-    bool  viscoelastic_rupture_detected; // Stiffness collapse during active compression
-    bool  cable_slip_fault;            // Jaw open but near-zero force
-    float clamped_force;               // ZTP-enforced force ceiling (N)
-} C_SurgicalResult;
-
-typedef struct {
-    float part_mass_micrograms;
-    float pull_off_force_un;              // Capillary stiction tension (μN)
-    float jaw_separation_um;             // Jaw opening (μm)
-    float dynamic_electrostatic_charge_v; // Surface charge (V)
-    float last_jaw_separation_um;
-} C_MicroReleaseAuditor;
-
-typedef struct {
-    bool release_stiction_active;       // Liquid capillary bridge holding part
-    bool electrostatic_charge_violation; // Charge > 150V — ESD risk
-    bool piezo_shake_trigger;           // Dispatch high-freq vibration to break bridge
-    bool safe_to_retract;               // Cleared for arm retraction
-} C_MicroResult;
-
-C_SurgicalResult ztp_surgical_evaluate_grasp(
-    const C_SurgicalTissueAuditor* auditor, float dt
-);
-
-C_MicroResult ztp_micro_evaluate_release(
-    const C_MicroReleaseAuditor* auditor, float dt
-);
-```
-
-**Tissue force limits (enforced by ZTP, not software-commanded):**
-
-| Tissue Type | ID | Max Force |
-|-------------|:--:|:---------:|
-| Liver / Spleen | 0 | 1.2 N |
-| Bowel / Vessel | 1 | 2.5 N |
-| Bone / Tendon | 2 | 40.0 N |
-
----
-
-## Cargo.toml Profile
-
-```toml
-[profile.release]
-opt-level      = 3
-lto            = true
-codegen-units  = 1
-panic          = 'abort'
-strip          = true
-```
+- **CPU sequential integrators** on purpose for single-body edge loops.  
+- **No corpus / Parquet / trajectory bank** here — that is genesis-core.  
+- **Not merged** with genesis_core; keep as a thin embeddable kernel.  
+- Microbench in `main.rs` covers three baseline domains; expanding benches is a later task.
 
 ---
 
 ## License
 
-Dual-licensed under [MIT](LICENSE-MIT) and [Apache 2.0](LICENSE-APACHE).
+Dual [MIT](LICENSE-MIT) / [Apache 2.0](LICENSE-APACHE).
 
 ---
 
-Part of the [G^G Physics](https://github.com/johnkruze/genesis-core) framework · [genesis-core](https://github.com/johnkruze/genesis-core) · [HuggingFace dataset](https://huggingface.co/datasets/spiderpilot89/gg-physical-ground-truth) · [zerotrustphysics.com](https://zerotrustphysics.com)
-
-*John Kruze · [LinkedIn](https://www.linkedin.com/in/john-kruze-34a6683a5/)*
+[genesis-core](https://github.com/johnkruze/genesis-core) · [zero-trust-physics](https://github.com/johnkruze/zero-trust-physics) · [ZeroTrustPhysics.com](https://zerotrustphysics.com)

@@ -1,1 +1,9 @@
 target/
+
+# Local agent instruction files — never commit (personal/ops context)
+AGENTS.md
+**/AGENTS.md
+CLAUDE.md
+**/CLAUDE.md
+Claude.md
+**/Claude.md
