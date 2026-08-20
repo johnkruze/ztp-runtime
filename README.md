@@ -1,46 +1,18 @@
-# ztp-runtime
+# ztp-runtime — the Reflex
 
-**Zero-dependency bare-metal physics kernel · C FFI · Pure Rust stdlib**
+**1000 Hz spinal cord for a VLA / GNC planner.** Zero crate dependencies. Pure Rust stdlib. Compiles to a C library you load next to the motor.
 
-Edge Layer 0 for Zero-Trust Physics: project commands onto physical invariants inside real-time loops. No crate dependencies. Compiles to a C-compatible dynamic library for GNC stacks and Python `ctypes`.
-
-Sibling of [genesis-core](https://github.com/johnkruze/genesis-core) (Monte Carlo / sealed trajectory banks). This crate is the thin embeddable reflex kernel only.
-
-[zerotrustphysics.com](https://zerotrustphysics.com) · [spiderpilot89](https://huggingface.co/spiderpilot89)
-
----
-
-## Layout
+Your policy thinks at 5–50 Hz. Physical failure (micro-slip, RF drop, e-brake) happens in ~2 ms. This crate is the thing that catches it.
 
 ```
-ztp-runtime/
-├── Cargo.toml
-├── README.md
-├── src/
-│   ├── lib.rs          # RNG, zero-dep SHA-256 / ProofChain, C exports
-│   ├── main.rs         # Microbench runner
-│   └── domains/        # Physics modules
-└── target/release/
-    └── libztp_runtime.*
+VLA / GNC  (5–50 Hz)     ztp-runtime  (1000 Hz)     actuator
+      intent      →      friction / stop / force     →   metal
+                         projection on-die
 ```
 
----
+Sibling: [genesis-core](https://github.com/johnkruze/genesis-core) is the **Forge** (sealed failure-boundary Monte Carlo). This crate is the thin **Reflex** only. Do not merge them.
 
-## Domains
-
-| Domain | Module | What it models |
-|--------|--------|----------------|
-| Terran | `domains/terran.rs` | Boussinesq soil stress, moisture / glomalin, robot contact |
-| Orbital | `domains/orbital.rs` | 6DOF translation + quaternion attitude, zonal harmonics |
-| Atheric | `domains/atheric.rs` | Friis path loss, Shannon capacity, cryptographic hop seed |
-| Mars EDL | `domains/mars.rs` | CO₂ atmosphere, drag, retro-propulsion step |
-| Dexterous | `domains/dexterous.rs` | Tactile grasp, surgical tissue auditor, micro-release |
-| Directed energy | `domains/directed_energy.rs` | Gimbal / jitter integration step |
-| Drone | `domains/drone.rs` | Multirotor dynamics step |
-| Subsea ROV | `domains/bluerov.rs` | Underwater ROV dynamics step |
-| Compounding | `domains/compounding.rs` | FKPP, Ostwald–de Waele viscosity, Noyes–Whitney dissolution, autonomic tone, state seal |
-
-Internal utilities in `lib.rs`: deterministic LCG PRNG; hand-rolled SHA-256 and proof sealing (no `sha2` crate).
+[zerotrustphysics.com](https://zerotrustphysics.com) · commercial: [Reflex Runtime eval](https://zerotrustphysics.com/offerings#kernel)
 
 ---
 
@@ -48,64 +20,82 @@ Internal utilities in `lib.rs`: deterministic LCG PRNG; hand-rolled SHA-256 and 
 
 ```bash
 cargo build --release
-cargo run --release          # microbench (terran / orbital / atheric)
+# macOS  → target/release/libztp_runtime.dylib
+# Linux  → target/release/libztp_runtime.so
+# Windows → target/release/ztp_runtime.dll
+
+cargo run --release    # microbench
 ```
 
-Artifacts:
+Release profile: `opt-level=3`, LTO, `codegen-units=1`, `panic=abort`, strip.
 
-| Platform | Library |
-|----------|---------|
-| macOS | `target/release/libztp_runtime.dylib` |
-| Linux | `target/release/libztp_runtime.so` |
-| Windows | `target/release/ztp_runtime.dll` |
+Demo the VLA gap (Python, sibling repo):
 
-`Cargo.toml` release profile: `opt-level=3`, LTO, `codegen-units=1`, `panic=abort`, strip.
+```bash
+# after cargo build --release
+python3 ../zero-trust-physics/vla_somatic_bridge.py
+```
+
+12 N policy drops the part. Same command with the reflex on catches micro-slip at **16 ms** and holds (45 N clamp).
 
 ---
 
-## C FFI index
+## C FFI
 
-All entry points are `#[no_mangle] extern "C"` in `src/lib.rs`. Load the dylib and call by name (or bind headers from these signatures).
+All entry points are `#[no_mangle] extern "C"` in `src/lib.rs`. That source is the ABI.
 
 | Export | Domain |
 |--------|--------|
-| `ztp_terran_evaluate_contact` | Terran soil contact |
-| `ztp_orbital_step_6dof` | Orbital translation |
-| `ztp_orbital_step_attitude` | Orbital attitude |
-| `ztp_atheric_handshake` | RF coherence handshake |
-| `ztp_mars_step` | Mars EDL step |
-| `ztp_dexterous_evaluate_grasp` | Tactile grasp |
+| `ztp_dexterous_evaluate_grasp` | Tactile grasp / slip |
 | `ztp_surgical_evaluate_grasp` | Surgical force ceiling |
 | `ztp_micro_evaluate_release` | Micro-assembly release |
-| `ztp_directed_energy_step` | Directed-energy gimbal |
-| `ztp_drone_step` | Drone step |
-| `ztp_bluerov_step` | Subsea ROV step |
-| `ztp_compounding_fkpp_step` | Compounding FKPP |
+| `ztp_drone_step` | Multirotor step |
+| `ztp_bluerov_step` | UUV / ROV step |
+| `ztp_directed_energy_step` | Gimbal / jitter |
+| `ztp_terran_evaluate_contact` | Soil contact |
+| `ztp_orbital_step_6dof` | Orbital translation |
+| `ztp_orbital_step_attitude` | Orbital attitude |
+| `ztp_atheric_handshake` | RF coherence |
+| `ztp_mars_step` | Mars EDL step |
+| `ztp_compounding_fkpp_step` | FKPP |
 | `ztp_compounding_compute_viscosity` | Ostwald–de Waele |
 | `ztp_compounding_audit_shear` | Shear audit |
 | `ztp_compounding_compute_dissolution_rate` | Noyes–Whitney |
 | `ztp_compounding_update_autonomic_tone` | Autonomic tone |
 | `ztp_compounding_seal_state` | State seal |
 
-Structs are `#[repr(C)]` next to each export in `lib.rs` / domain modules. That source is the authoritative ABI.
-
-**Python:** load `libztp_runtime` via `ctypes` with matching `Structure` layouts (see sibling [zero-trust-physics](https://github.com/johnkruze/zero-trust-physics) loaders).
+`#[repr(C)]` structs sit next to each export. Python `ctypes` layouts: [zero-trust-physics](https://github.com/johnkruze/zero-trust-physics).
 
 ---
 
-## Design notes
+## Domains
 
-- **CPU sequential integrators** on purpose for single-body edge loops.  
-- **No corpus / Parquet / trajectory bank** here — that is genesis-core.  
-- **Not merged** with genesis_core; keep as a thin embeddable kernel.  
-- Microbench in `main.rs` covers three baseline domains; expanding benches is a later task.
+| Module | Physics |
+|--------|---------|
+| `dexterous` | Tactile grasp, surgical auditor, micro-release |
+| `drone` | Multirotor dynamics step |
+| `bluerov` | Underwater ROV step |
+| `atheric` | Friis / Shannon / hop seed |
+| `terran` | Boussinesq soil contact |
+| `orbital` | 6DOF + quaternion attitude |
+| `mars` | CO₂ EDL step |
+| `directed_energy` | Gimbal / jitter |
+| `compounding` | FKPP, Ostwald–de Waele, Noyes–Whitney |
+
+`lib.rs` also carries a deterministic LCG and a hand-rolled SHA-256 ProofChain (no `sha2` crate).
+
+---
+
+## Design
+
+- CPU sequential integrators on purpose — single-body edge loops.
+- **No Parquet, no corpus, no Monte Carlo.** That is genesis-core (the Forge).
+- Not a cloud API. You load a dylib.
 
 ---
 
 ## License
 
 Dual [MIT](LICENSE-MIT) / [Apache 2.0](LICENSE-APACHE).
-
----
 
 [genesis-core](https://github.com/johnkruze/genesis-core) · [zero-trust-physics](https://github.com/johnkruze/zero-trust-physics) · [ZeroTrustPhysics.com](https://zerotrustphysics.com)
