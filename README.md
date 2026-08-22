@@ -29,14 +29,14 @@ cargo run --release    # microbench
 
 Release profile: `opt-level=3`, LTO, `codegen-units=1`, `panic=abort`, strip.
 
-Demo the VLA gap (Python, sibling repo):
+Demo the VLA gap (Python ctypes, this crate):
 
 ```bash
-# after cargo build --release
-python3 ../zero-trust-physics/vla_somatic_bridge.py
+cargo build --release
+python3 examples/python/vla_somatic_bridge.py
 ```
 
-12 N policy drops the part. Same command with the reflex on catches micro-slip at **16 ms** and holds (45 N clamp).
+12 N policy drops the part. Same command with the reflex on catches micro-slip at **16 ms** and holds (45 N clamp). Other ctypes examples: `examples/python/README.md`. C eval box (hold / tissue / machine) is the Spectrum sibling `grokd/public/ztp-runtime-eval/`.
 
 ---
 
@@ -64,7 +64,7 @@ All entry points are `#[no_mangle] extern "C"` in `src/lib.rs`. That source is t
 | `ztp_compounding_update_autonomic_tone` | Autonomic tone |
 | `ztp_compounding_seal_state` | State seal |
 
-`#[repr(C)]` structs sit next to each export. Python `ctypes` layouts: [zero-trust-physics](https://github.com/johnkruze/zero-trust-physics).
+`#[repr(C)]` structs sit next to each export. Python `ctypes` layouts: `examples/python/`.
 
 ---
 
@@ -98,4 +98,4 @@ All entry points are `#[no_mangle] extern "C"` in `src/lib.rs`. That source is t
 
 Dual [MIT](LICENSE-MIT) / [Apache 2.0](LICENSE-APACHE).
 
-[genesis-core](https://github.com/johnkruze/genesis-core) · [zero-trust-physics](https://github.com/johnkruze/zero-trust-physics) · [ZeroTrustPhysics.com](https://zerotrustphysics.com)
+[genesis-core](https://github.com/johnkruze/genesis-core) · [ZeroTrustPhysics.com](https://zerotrustphysics.com)

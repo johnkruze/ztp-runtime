@@ -1,11 +1,8 @@
 // =====================================================================
-// SOMA (DeepHarmonics) - Biological Compounding & Somatic Core
+// Compounding + body-coherence engines for ztp-runtime.
 // File: compounding.rs
-// =====================================================================
-// This module implements the Layer 1 Somatic-Biological Invariant Solvers.
-// It bypasses the symbolic "text" abstractions of conventional Bio-AI
-// to execute raw, real-time thermodynamic and mass-transport equations
-// natively on standard CPU cache lines.
+// SPECTRA is the system. soma is interior: autonomic tone, shear, dissolution.
+// Same dylib as grasp and tissue. One machine, several engines.
 //
 // No heap allocation is permitted in the hot path. All structs are
 // aligned to 128-byte boundaries to prevent von Neumann bus stalling.
@@ -17,6 +14,17 @@
 pub const GOLDEN_RATIO: f32 = 1.618033988749895; // \phi - Anti-resonance damping factor
 pub const GAS_CONSTANT_R: f32 = 8.314462618;    // J/(mol*K)
 pub const PLASMA_VISCOSITY_BASE: f32 = 1.2e-3;   // Pa*s (Baseline at 37°C)
+
+/// Must match genesis_core::physics::compounding gates.
+pub const POTENCY_COLLAPSE_PCT: f32 = 80.0;
+pub const DISSOLUTION_STALL_PCT: f32 = 70.0;
+pub const SHEAR_GATE_BROTH_PA: f32 = 15.0;
+pub const SHEAR_GATE_DEFAULT_PA: f32 = 500.0;
+pub const OSTWALD_K: f32 = 0.015;
+pub const OSTWALD_N: f32 = 0.70;
+pub const NOYES_D: f32 = 5.0e-10;
+pub const NOYES_H: f32 = 1.0e-5;
+pub const NOYES_CS: f32 = 50.0;
 
 // =====================================================================
 // VECTOR 1: VIROLOGY & PATHOGEN PROPAGATION (FKPP PDE SOLVER)
@@ -95,6 +103,17 @@ pub struct C_OstwaldDeWaeleFluid {
     pub accumulated_shear_stress: f32,  // Cumulative shear-history (\tau_s)
 }
 
+impl Default for C_OstwaldDeWaeleFluid {
+    fn default() -> Self {
+        Self {
+            consistency_index_k: OSTWALD_K,
+            flow_index_n: OSTWALD_N,
+            critical_shear_limit: SHEAR_GATE_DEFAULT_PA,
+            accumulated_shear_stress: 0.0,
+        }
+    }
+}
+
 impl C_OstwaldDeWaeleFluid {
     /// Computes the effective dynamic viscosity (\eta) as a function of the
     /// active, high-frequency shear rate (\dot{\gamma}) computed on-die.
@@ -136,6 +155,17 @@ pub struct C_NoyesWhitneySolver {
     pub saturation_solubility_cs: f32,  // C_s (g/mL)
 }
 
+impl Default for C_NoyesWhitneySolver {
+    fn default() -> Self {
+        Self {
+            diffusion_coefficient_d: NOYES_D,
+            active_surface_area_a: 0.05,
+            boundary_layer_thickness_h: NOYES_H,
+            saturation_solubility_cs: NOYES_CS,
+        }
+    }
+}
+
 impl C_NoyesWhitneySolver {
     /// Computes the instantaneous mass transport rate across the mucosal/cellular boundary.
     #[inline(always)]
@@ -171,7 +201,7 @@ impl C_NoyesWhitneySolver {
 #[derive(Copy, Clone)]
 pub struct C_SomaticVagalBridge {
     pub heart_rate_bpm: f32,
-    pub respiratory_frequency_hz: f32, // 0.083 Hz = SOMA 1:2 Mayer Wave Coherence
+    pub respiratory_frequency_hz: f32, // 0.083 Hz ≈ 1:2 Mayer-wave respiratory coherence
     pub trigeminal_pressure_pa: f32,   // CN V mechanical mastication load
     pub autonomic_ratio: f32,          // A = S/P (Sympathetic/Parasympathetic)
 }
@@ -219,7 +249,7 @@ pub struct C_BiologicalState {
 
 impl C_BiologicalState {
     /// Generates an un-forgeable SHA-256 seal of the current biological state-vector
-    /// to serve as the immutable SOMA proof.
+    /// to serve as the chained last-state seal (local cryptographic memory).
     #[inline(always)]
     pub fn seal_state(&mut self) -> [u8; 32] {
         let mut hasher = crate::crypto::Sha256::new();

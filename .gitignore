@@ -1,4 +1,6 @@
 target/
+examples/python/*.png
+examples/python/*.parquet
 
 # Local agent instruction files — never commit (personal/ops context)
 AGENTS.md
