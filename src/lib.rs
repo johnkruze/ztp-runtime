@@ -696,6 +696,15 @@ pub extern "C" fn ztp_compounding_seal_state(
     }
 }
 
+// Marine last-state — Mackenzie 1981 + hydrostatic ρgz + thermocline Snell.
+// 8 × f64 = 64 B, same orb as SPECTRA OceanState / last_state::FRAME_BYTES.
+pub use crate::domains::marine::C_MarineState;
+
+#[no_mangle]
+pub extern "C" fn ztp_marine_evaluate_state(depth_m: f32, time_step: f32) -> C_MarineState {
+    crate::domains::marine::evaluate_state(depth_m as f64, time_step as f64)
+}
+
 
 // ─── UNIT TESTS ──────────────────────────────────────────────────
 

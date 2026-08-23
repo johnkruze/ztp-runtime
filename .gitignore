@@ -3,6 +3,8 @@ examples/python/*.png
 examples/python/*.parquet
 __pycache__/
 *.pyc
+*.pyo
+.DS_Store
 
 # Local agent instruction files — never commit (personal/ops context)
 AGENTS.md
