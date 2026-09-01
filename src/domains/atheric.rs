@@ -14,7 +14,7 @@ use crate::crypto::Sha256;
 
 // ─── CONSTANTS ────────────────────────────────────────────
 
-pub const BASE_FREQUENCY: f64 = 432.0;        // Hz — The Nature Standard
+pub const BASE_FREQUENCY: f64 = 2.4e9;        // 2.4 GHz ISM — same organ as genesis_core
 pub const SPEED_OF_LIGHT: f64 = 299_792_458.0;
 pub const RESONANCE_GATE: f64 = 0.98;         // Minimum coherence for inhabitation
 
@@ -32,7 +32,7 @@ pub fn watts_to_dbm(watts: f64) -> f64 {
 }
 
 /// Free-space received power (Friis equation, isotropic antennas, clamped).
-/// At 432Hz harmonics the wavelengths are enormous — path loss is gentle.
+/// Lab path-loss is live at BASE_FREQUENCY (2.4 GHz ISM).
 pub fn free_space_received(tx_w: f64, freq_hz: f64, distance_m: f64) -> f64 {
     if distance_m <= 0.0 { return tx_w; }
     let wavelength = SPEED_OF_LIGHT / freq_hz;
@@ -85,7 +85,7 @@ pub struct AthericSystem {
 }
 
 impl AthericSystem {
-    /// Build N channels at 432Hz harmonics.
+    /// Build N channels at BASE_FREQUENCY harmonics (2.4 GHz ISM).
     pub fn new(
         n_channels: usize,
         tx_power: f64,
@@ -223,7 +223,7 @@ pub fn with_redundancy(data_packets: usize, redundancy: f64) -> usize {
     (data_packets as f64 * redundancy).ceil() as usize
 }
 
-/// The Citadel Direct-Link. Calculate SNR and generate the 432Hz internal frequency response.
+/// Direct-link handshake. SNR and coherence at 2.4 GHz ISM.
 pub fn run_atheric_handshake(intent_hash: [u8; 32], strength: f32, distance: f32) -> String {
     let mut sys = AthericSystem::new(8, strength as f64, -120.0, distance as f64);
     sys.hop_seed = intent_hash;

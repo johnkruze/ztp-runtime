@@ -444,6 +444,7 @@ pub extern "C" fn ztp_mars_step(
 pub use crate::domains::dexterous::{
     C_TactileArray, C_GraspState, C_GraspResult, C_SurgicalTissueAuditor,
     C_SurgicalResult, C_MicroReleaseAuditor, C_MicroResult,
+    C_HandTendonState, C_HandTendonResult,
 };
 
 #[no_mangle]
@@ -501,6 +502,26 @@ pub extern "C" fn ztp_micro_evaluate_release(
     unsafe {
         crate::domains::dexterous::evaluate_micro_release_dynamics(&*auditor, dt)
     }
+}
+
+#[no_mangle]
+pub extern "C" fn ztp_dexterous_evaluate_hand(
+    state: *mut C_HandTendonState,
+    dt: f32,
+) -> C_HandTendonResult {
+    if state.is_null() {
+        return C_HandTendonResult {
+            tendon_overstretch: false,
+            pad_slip: false,
+            commanded_force: 0.0,
+            margin: 0.0,
+            tendon_tension_n: 0.0,
+            pad_normal_n: 0.0,
+            stretch_m: 0.0,
+            strain: 0.0,
+        };
+    }
+    unsafe { crate::domains::dexterous::evaluate_hand_tendon_dynamics(&mut *state, dt) }
 }
 
 // Expose Directed Energy Laser Targeting FFI wrappers
@@ -705,6 +726,523 @@ pub extern "C" fn ztp_marine_evaluate_state(depth_m: f32, time_step: f32) -> C_M
     crate::domains::marine::evaluate_state(depth_m as f64, time_step as f64)
 }
 
+/* STREAM1 mycelial — SPECTRA MycelialState is already 8×f64 = 64 B in
+   spectra_genesis terran.rs. Wire it. Do not redesign the orb. Clock 10 Hz. */
+pub use crate::domains::mycelial::C_MycelialState;
+
+#[no_mangle]
+pub extern "C" fn ztp_mycelial_evaluate_state(
+    health_index: f32,
+    hyphal_density: f32,
+    tilling_stress: f32,
+    time_s: f32,
+) -> C_MycelialState {
+    crate::domains::mycelial::evaluate_state(
+        health_index as f64,
+        hyphal_density as f64,
+        tilling_stress as f64,
+        time_s as f64,
+    )
+}
+
+// Last-state file pinout — same 64 B header + 64 B frame as genesis_core / SOMA.md.
+pub use crate::domains::last_state::{C_LastStateFrame, C_LastStateHeader, BODY_HUMANOID};
+
+#[no_mangle]
+pub extern "C" fn ztp_last_state_header_ok(file: *const u8, len: u64) -> bool {
+    if file.is_null() || len == 0 {
+        return false;
+    }
+    let bytes = unsafe { std::slice::from_raw_parts(file, len as usize) };
+    crate::domains::last_state::header_ok(bytes)
+}
+
+#[no_mangle]
+pub extern "C" fn ztp_last_state_peek_last(
+    file: *const u8,
+    len: u64,
+    out: *mut C_LastStateFrame,
+) -> bool {
+    if file.is_null() || out.is_null() {
+        return false;
+    }
+    let bytes = unsafe { std::slice::from_raw_parts(file, len as usize) };
+    match crate::domains::last_state::peek_last(bytes) {
+        Some(frame) => {
+            unsafe {
+                *out = frame;
+            }
+            true
+        }
+        None => false,
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ztp_last_state_pack_humanoid(
+    timestamp_ms: u32,
+    com_x: f32,
+    com_y: f32,
+    com_z: f32,
+    vel_x: f32,
+    vel_y: f32,
+    vel_z: f32,
+    pitch_rad: f32,
+    zmp_margin_m: f32,
+    is_dark_window: bool,
+    is_buckle: bool,
+    is_reflex_grasp: bool,
+) -> C_LastStateFrame {
+    crate::domains::last_state::pack_humanoid(
+        timestamp_ms,
+        [com_x, com_y, com_z],
+        [vel_x, vel_y, vel_z],
+        pitch_rad,
+        zmp_margin_m,
+        is_dark_window,
+        is_buckle,
+        is_reflex_grasp,
+    )
+}
+
+#[no_mangle]
+pub extern "C" fn ztp_last_state_pack_hand(
+    timestamp_ms: u32,
+    tension_n: f32,
+    pad_normal_n: f32,
+    stretch_m: f32,
+    opposition_rad: f32,
+    q_mcp: f32,
+    slip_m_s: f32,
+    margin: f32,
+    object_span_m: f32,
+    tendon_overstretch: bool,
+    pad_slip: bool,
+) -> C_LastStateFrame {
+    crate::domains::last_state::pack_hand(
+        timestamp_ms,
+        tension_n,
+        pad_normal_n,
+        stretch_m,
+        opposition_rad,
+        q_mcp,
+        slip_m_s,
+        margin,
+        object_span_m,
+        tendon_overstretch,
+        pad_slip,
+    )
+}
+
+#[no_mangle]
+pub extern "C" fn ztp_last_state_pack_ocean(
+    timestamp_ms: u32,
+    max_depth_m: f32,
+    peak_pressure_mpa: f32,
+    battery_wh: f32,
+    true_crush_m: f32,
+    believed_crush_m: f32,
+    battery_used_pct: f32,
+    mass_kg: f32,
+    target_depth_m: f32,
+    is_crushed: bool,
+    is_power_starved: bool,
+) -> C_LastStateFrame {
+    crate::domains::last_state::pack_ocean(
+        timestamp_ms,
+        max_depth_m,
+        peak_pressure_mpa,
+        battery_wh,
+        true_crush_m,
+        believed_crush_m,
+        battery_used_pct,
+        mass_kg,
+        target_depth_m,
+        is_crushed,
+        is_power_starved,
+    )
+}
+
+#[no_mangle]
+pub extern "C" fn ztp_last_state_pack_drone(
+    timestamp_ms: u32,
+    pos_x: f32,
+    pos_y: f32,
+    pos_z: f32,
+    vel_x: f32,
+    vel_y: f32,
+    vel_z: f32,
+    pitch_rad: f32,
+    coherence_residual: f32,
+    is_dark_window: bool,
+    is_vslam_fail: bool,
+    is_reflex_active: bool,
+) -> C_LastStateFrame {
+    crate::domains::last_state::pack_drone(
+        timestamp_ms,
+        pos_x,
+        pos_y,
+        pos_z,
+        vel_x,
+        vel_y,
+        vel_z,
+        pitch_rad,
+        coherence_residual,
+        is_dark_window,
+        is_vslam_fail,
+        is_reflex_active,
+    )
+}
+
+#[no_mangle]
+pub extern "C" fn ztp_last_state_body_id(header: *const u8) -> u16 {
+    if header.is_null() {
+        return 0;
+    }
+    let bytes = unsafe { std::slice::from_raw_parts(header, 64) };
+    if &bytes[0..4] != b"SOMA" {
+        return 0;
+    }
+    u16::from_le_bytes([bytes[6], bytes[7]])
+}
+
+/* STREAM4 fusion — tokamak µs + swing 1 ms. Not machine.c. No reactor hour loop. */
+pub use crate::domains::tokamak::C_TokamakState;
+pub use crate::domains::swing::C_SwingState;
+
+#[no_mangle]
+pub extern "C" fn ztp_tokamak_step(state: *mut C_TokamakState, dt_us: f64) {
+    if state.is_null() {
+        return;
+    }
+    unsafe {
+        crate::domains::tokamak::step_tokamak(&mut *state, dt_us);
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ztp_tokamak_equilibrium_b(state: *const C_TokamakState) -> f64 {
+    if state.is_null() {
+        return 0.0;
+    }
+    unsafe { (*state).exact_equilibrium_b_field() }
+}
+
+#[no_mangle]
+pub extern "C" fn ztp_tokamak_apply_ai_field(
+    state: *mut C_TokamakState,
+    target_b: f64,
+    radial_noise: f64,
+    z_asymmetry_noise: f64,
+) {
+    if state.is_null() {
+        return;
+    }
+    unsafe {
+        (*state).apply_agentic_ai_field(target_b, radial_noise, z_asymmetry_noise);
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ztp_swing_step(state: *mut C_SwingState, dt: f64) {
+    if state.is_null() {
+        return;
+    }
+    unsafe {
+        crate::domains::swing::step_swing(&mut *state, dt);
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ztp_swing_weather_loss(state: *mut C_SwingState, loss_percentage: f64) {
+    if state.is_null() {
+        return;
+    }
+    unsafe {
+        (*state).simulate_weather_loss(loss_percentage);
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ztp_swing_ai_mismatch(state: *mut C_SwingState, mismatch_percentage: f64) {
+    if state.is_null() {
+        return;
+    }
+    unsafe {
+        (*state).ai_apply_load_mismatch(mismatch_percentage);
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ztp_last_state_pack_mycelial(
+    timestamp_ms: u32,
+    health_index: f32,
+    hyphal_density: f32,
+    percolation_index: f32,
+    delivered_nutrient: f32,
+    conductance_mean: f32,
+    tilling_stress: f32,
+    is_fragmented: bool,
+    is_below_percolation: bool,
+) -> C_LastStateFrame {
+    crate::domains::last_state::pack_mycelial(
+        timestamp_ms,
+        health_index,
+        hyphal_density,
+        percolation_index,
+        delivered_nutrient,
+        conductance_mean,
+        tilling_stress,
+        is_fragmented,
+        is_below_percolation,
+    )
+}
+
+/* STREAM1 — write body 8 MYCELIA1 header + frames. Digest is SHA-256 of frames. */
+#[no_mangle]
+pub extern "C" fn ztp_last_state_write_mycelial(
+    path: *const std::os::raw::c_char,
+    frames: *const C_LastStateFrame,
+    n_frames: u64,
+) -> bool {
+    if path.is_null() || frames.is_null() || n_frames == 0 {
+        return false;
+    }
+    let cpath = unsafe { std::ffi::CStr::from_ptr(path) };
+    let Ok(path_str) = cpath.to_str() else {
+        return false;
+    };
+    let slice = unsafe { std::slice::from_raw_parts(frames, n_frames as usize) };
+    let bytes = crate::domains::last_state::write_soma_file(
+        crate::domains::last_state::BODY_MYCELIAL,
+        *b"MYCELIA1",
+        slice,
+    );
+    std::fs::write(path_str, bytes).is_ok()
+}
+
+#[no_mangle]
+pub extern "C" fn ztp_last_state_pack_fusion(
+    t_s: f64,
+    flux: f32,
+    beta_eff: f32,
+    time_s: f32,
+    xenon_worth: f32,
+    pit_hours: f32,
+    core_age_days: f32,
+    delta_rho: f32,
+    base_rho: f32,
+    is_prompt_critical: bool,
+    is_pit_survived: bool,
+) -> C_LastStateFrame {
+    crate::domains::last_state::pack_fusion(
+        t_s,
+        flux,
+        beta_eff,
+        time_s,
+        xenon_worth,
+        pit_hours,
+        core_age_days,
+        delta_rho,
+        base_rho,
+        is_prompt_critical,
+        is_pit_survived,
+    )
+}
+
+/* STREAM3 reentry / plasma — 20 Hz GPS L1. Not HGV 1 kHz. Not machine.c. */
+pub use crate::domains::plasma::{C_PlasmaResult, C_PlasmaState};
+
+#[no_mangle]
+pub extern "C" fn ztp_plasma_init(
+    state: *mut C_PlasmaState,
+    mach: f64,
+    z0_m: f64,
+    dive_rad: f64,
+    v_tgt_m_s: f64,
+) {
+    if state.is_null() {
+        return;
+    }
+    unsafe {
+        *state = crate::domains::plasma::C_PlasmaState::init(mach, z0_m, dive_rad, v_tgt_m_s);
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ztp_plasma_fp_vs_l1(
+    state: *mut C_PlasmaState,
+    dt: f64,
+) -> C_PlasmaResult {
+    if state.is_null() {
+        return C_PlasmaResult {
+            n_e_m3: 0.0,
+            fp_hz: 0.0,
+            l1_hz: crate::domains::plasma::GPS_L1_HZ,
+            fp_over_l1: 0.0,
+            miss_m: 0.0,
+            blackout: false,
+            is_miss: false,
+            gps_held: false,
+        };
+    }
+    unsafe { crate::domains::plasma::fp_vs_l1(&mut *state, dt) }
+}
+
+#[no_mangle]
+pub extern "C" fn ztp_last_state_pack_plasma(
+    timestamp_ms: u32,
+    last_gps_x_m: f32,
+    altitude_m: f32,
+    last_gps_tgt_m: f32,
+    fp_ghz: f32,
+    l1_ghz: f32,
+    miss_m: f32,
+    fp_over_l1: f32,
+    miss_repeat_m: f32,
+    is_blackout: bool,
+    is_miss: bool,
+    is_gps_held: bool,
+) -> C_LastStateFrame {
+    crate::domains::last_state::pack_plasma(
+        timestamp_ms,
+        last_gps_x_m,
+        altitude_m,
+        last_gps_tgt_m,
+        fp_ghz,
+        l1_ghz,
+        miss_m,
+        fp_over_l1,
+        miss_repeat_m,
+        is_blackout,
+        is_miss,
+        is_gps_held,
+    )
+}
+
+#[no_mangle]
+pub extern "C" fn ztp_last_state_write(
+    body_id: u16,
+    reserved: *const u8,
+    frames: *const C_LastStateFrame,
+    n_frames: u64,
+    out: *mut u8,
+    out_cap: u64,
+) -> u64 {
+    if reserved.is_null() || frames.is_null() || out.is_null() || n_frames == 0 {
+        return 0;
+    }
+    let need = 64u64 + n_frames * 64;
+    if out_cap < need {
+        return 0;
+    }
+    let mut reserved8 = [0u8; 8];
+    unsafe {
+        std::ptr::copy_nonoverlapping(reserved, reserved8.as_mut_ptr(), 8);
+    }
+    let slice = unsafe { std::slice::from_raw_parts(frames, n_frames as usize) };
+    let bin = crate::domains::last_state::write_soma_file(body_id, reserved8, slice);
+    if bin.len() as u64 > out_cap {
+        return 0;
+    }
+    unsafe {
+        std::ptr::copy_nonoverlapping(bin.as_ptr(), out, bin.len());
+    }
+    bin.len() as u64
+}
+
+/* STREAM5 compounding mill — body 32 BROTH001. Mill already ticks on machine.c. */
+#[no_mangle]
+pub extern "C" fn ztp_last_state_pack_compounding(
+    timestamp_ms: u32,
+    accumulated_shear_stress_pa: f32,
+    active_potency_pct: f32,
+    dissolution_pct: f32,
+    final_viscosity_pas: f32,
+    final_api_concentration_kg_m3: f32,
+    shear_rate_s1: f32,
+    is_potency_collapsed: bool,
+    is_dissolution_stalled: bool,
+) -> C_LastStateFrame {
+    crate::domains::last_state::pack_compounding(
+        timestamp_ms,
+        accumulated_shear_stress_pa,
+        active_potency_pct,
+        dissolution_pct,
+        final_viscosity_pas,
+        final_api_concentration_kg_m3,
+        shear_rate_s1,
+        is_potency_collapsed,
+        is_dissolution_stalled,
+    )
+}
+
+/* STREAM2 vehicle — Pacejka hydroplane dt=0.001 on chassis.c.
+   ztp_terran_evaluate_contact is soil, not the car. Not machine.c.
+   128 B Forge cache line ≠ 64 B LastStateFrame64 file. */
+pub use crate::domains::vehicle::{C_VehicleDynamicsState, C_VehicleHydroplaneResult};
+
+#[no_mangle]
+pub extern "C" fn ztp_vehicle_hydroplane_step(
+    state: *mut C_VehicleDynamicsState,
+    mu_dry: f32,
+    mu_wet: f32,
+    x_water_m: f32,
+    steer_rad: f32,
+    mass_kg: f32,
+    v_hold_ms: f32,
+    dt: f32,
+) -> C_VehicleHydroplaneResult {
+    if state.is_null() {
+        return C_VehicleHydroplaneResult {
+            mu: 0.0,
+            abs_y_m: 0.0,
+            yaw_rad: 0.0,
+            hydroplane: false,
+            corner_lost: false,
+            grip: false,
+        };
+    }
+    unsafe {
+        crate::domains::vehicle::step_vehicle_hydroplane(
+            &mut *state,
+            mu_dry,
+            mu_wet,
+            x_water_m,
+            steer_rad,
+            mass_kg,
+            v_hold_ms,
+            dt,
+        )
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ztp_last_state_pack_vehicle(
+    timestamp_ms: u32,
+    mu: f32,
+    abs_y_m: f32,
+    yaw_rad: f32,
+    vel_x: f32,
+    vel_y: f32,
+    yaw_rate: f32,
+    is_hydroplane: bool,
+    is_corner_lost: bool,
+    is_grip: bool,
+) -> C_LastStateFrame {
+    crate::domains::last_state::pack_vehicle(
+        timestamp_ms,
+        mu,
+        abs_y_m,
+        yaw_rad,
+        vel_x,
+        vel_y,
+        yaw_rate,
+        is_hydroplane,
+        is_corner_lost,
+        is_grip,
+    )
+}
 
 /* Tesseract IMU firewall. Host dt=0.001. Resonator ω_n is 100 Hz.
    Not machine.c. Body 12 last-state is not this sitting.

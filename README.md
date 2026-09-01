@@ -1,18 +1,18 @@
 # ztp-runtime — the Reflex
 
-**1000 Hz spinal cord for a VLA / GNC planner.** Zero crate dependencies. Pure Rust stdlib. Compiles to a C library you load next to the motor.
+**On-device loop for a VLA / GNC planner.** Zero crate dependencies. Pure Rust stdlib. Compiles to a C library you load next to the motor. Hz is the body’s: grasp is 1 kHz, plasma is 20 Hz, confine is 1 µs.
 
-Your policy thinks at 5–50 Hz. Physical failure (micro-slip, RF drop, e-brake) happens in ~2 ms. This crate is the thing that catches it.
+Your policy thinks at 5–50 Hz. Grasp slip happens in ~2 ms. This crate is the thing that catches it — and the other bodies at their own dt.
 
 ```
-VLA / GNC  (5–50 Hz)     ztp-runtime  (1000 Hz)     actuator
+VLA / GNC  (5–50 Hz)     ztp-runtime  (body Hz)     actuator
       intent      →      friction / stop / force     →   metal
                          projection on-die
 ```
 
 Sibling: [genesis-core](https://github.com/johnkruze/genesis-core) is the **Forge** (sealed failure-boundary Monte Carlo). This crate is the thin **Reflex** only. Do not merge them.
 
-[zerotrustphysics.com](https://zerotrustphysics.com) · commercial: [Reflex Runtime eval](https://zerotrustphysics.com/offerings#kernel)
+[zerotrustphysics.com](https://zerotrustphysics.com) · commercial: [Reflex Runtime eval](https://zerotrustphysics.com/offerings#reflex)
 
 ---
 
@@ -36,7 +36,7 @@ cargo build --release
 python3 examples/python/vla_somatic_bridge.py
 ```
 
-12 N policy drops the part. Same command with the reflex on catches micro-slip at **16 ms** and holds (45 N clamp). Other ctypes examples: `examples/python/README.md`. C eval box (hold / tissue / machine) is the Spectrum sibling `grokd/public/ztp-runtime-eval/`.
+C eval box is `grokd/public/ztp-runtime-eval/` — `cd examples && make help && make check`. One dylib, many clocks (grasp 1 kHz · orbit 100 Hz · plasma 20 Hz · hypha 10 Hz · confine 1 µs).
 
 ---
 
@@ -47,14 +47,21 @@ All entry points are `#[no_mangle] extern "C"` in `src/lib.rs`. That source is t
 | Export | Domain |
 |--------|--------|
 | `ztp_dexterous_evaluate_grasp` | Tactile grasp / slip |
+| `ztp_dexterous_evaluate_hand` | Serial finger + tendon / pad cone |
 | `ztp_surgical_evaluate_grasp` | Surgical force ceiling |
 | `ztp_micro_evaluate_release` | Micro-assembly release |
 | `ztp_drone_step` | Multirotor step |
 | `ztp_bluerov_step` | UUV / ROV step |
-| `ztp_marine_evaluate_state` | Mackenzie / hydrostatic / Snell (64 B) |
-| `ztp_tesseract_step` | Duffing IMU firewall (host dt=0.001; ω_n 100 Hz; 64 B orb; PHYSICAL_ANOMALY freeze) |
+| `ztp_marine_evaluate_state` | Mackenzie / hydrostatic / Snell (64 B live orb) |
+| `ztp_mycelial_evaluate_state` | Kirchhoff hyphae (64 B live orb, SPECTRA MycelialState) |
+| `ztp_last_state_*` | `.soma.bin` header + frame peek / pack (64 B file pinout) |
+| `ztp_plasma_fp_vs_l1` | Sheath vs GPS L1, 20 Hz |
+| `ztp_tokamak_step` | Bottle, 1 µs |
+| `ztp_swing_step` | Grid rotor, 1 ms |
 | `ztp_directed_energy_step` | Gimbal / jitter |
 | `ztp_terran_evaluate_contact` | Soil contact |
+| `ztp_vehicle_hydroplane_step` | Pacejka chassis / hydroplane (1 kHz; not soil) |
+| `ztp_tesseract_step` | Duffing IMU firewall (host 1 kHz; ω_n 100 Hz; not machine.c) |
 | `ztp_orbital_step_6dof` | Orbital translation |
 | `ztp_orbital_step_attitude` | Orbital attitude |
 | `ztp_atheric_handshake` | RF coherence |
@@ -74,17 +81,21 @@ All entry points are `#[no_mangle] extern "C"` in `src/lib.rs`. That source is t
 
 | Module | Physics |
 |--------|---------|
-| `dexterous` | Tactile grasp, surgical auditor, micro-release |
+| `dexterous` | Tactile grasp, surgical auditor, micro-release, hand tendon |
 | `drone` | Multirotor dynamics step |
 | `bluerov` | Underwater ROV step |
 | `marine` | Mackenzie 1981, ρgz, thermocline Snell |
-| `tesseract` | Duffing IMU firewall (host dt=0.001; ω_n 100 Hz; 64 B orb) |
 | `atheric` | Friis / Shannon / hop seed |
 | `terran` | Boussinesq soil contact |
+| `vehicle` | Pacejka hydroplane (1 kHz) |
 | `orbital` | 6DOF + quaternion attitude |
 | `mars` | CO₂ EDL step |
 | `directed_energy` | Gimbal / jitter |
 | `compounding` | FKPP, Ostwald–de Waele, Noyes–Whitney |
+| `plasma` | Sheath vs GPS L1 (20 Hz) |
+| `tokamak` | MHD bottle (1 µs) |
+| `swing` | Grid rotor (1 ms) |
+| `mycelial` | Kirchhoff hyphae (10 Hz) |
 
 `lib.rs` also carries a deterministic LCG and a hand-rolled SHA-256 ProofChain (no `sha2` crate).
 

@@ -1,6 +1,21 @@
 //! High-frequency Tactile Slip Observer & Reflex Controller (ZTP-TSA)
 //! Designed for embeddable real-time microcontrollers (no_std compatible).
 
+pub const GRASP_CLAMP_N: f32 = 45.0;
+pub const N_FINGER_PATCHES: usize = 5;
+pub const N_HAND_FINGERS: usize = N_FINGER_PATCHES;
+pub const PHALANGE_PROXIMAL_M: f32 = 0.045;
+pub const PHALANGE_INTERMEDIATE_M: f32 = 0.028;
+pub const PHALANGE_DISTAL_M: f32 = 0.018;
+pub const TENDON_STIFFNESS_N_PER_M: f32 = 1800.0;
+pub const TENDON_REST_LENGTH_M: f32 = 0.118;
+pub const TENDON_STRAIN_WARN: f32 = 0.055;
+pub const TENDON_MOMENT_ARM_M: f32 = 0.0075;
+pub const THUMB_OPPOSITION_RAD: f32 = 1.047;
+pub const HAND_JOINT_KP: f32 = 0.42;
+pub const HAND_JOINT_KD: f32 = 0.012;
+pub const HAND_JOINT_INERTIA: f32 = 6.5e-5;
+
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
 pub struct Taxel {
@@ -170,6 +185,264 @@ pub fn evaluate_grasp_dynamics(
         commanded_force: state.normal_force,
         margin,
         estimated_mu,
+    }
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct FingerPatch {
+    pub array: C_TactileArray,
+    pub com_offset_m: [f32; 3],
+}
+
+pub fn evaluate_multi_patch_grasp(
+    patches: &[FingerPatch],
+    state: &mut C_GraspState,
+    dt: f32,
+) -> C_GraspResult {
+    let mut micro_any = false;
+    let mut macro_any = false;
+    let mut rot_any = false;
+    let mut min_margin = 1.0f32;
+    let mut sum_mu = 0.0f32;
+
+    let n = patches.len().max(1) as f32;
+    let dt_share = dt / n;
+    for patch in patches {
+        let extra_shear = state.object_mass * 9.81 * patch.com_offset_m[0].abs() / 16.0;
+        let mut array = patch.array;
+        if extra_shear > 0.0 {
+            for taxel in &mut array.taxels {
+                taxel.shear_x += extra_shear;
+            }
+        }
+        let res = evaluate_grasp_dynamics(&array, state, dt_share);
+        if res.micro_slip_detected {
+            micro_any = true;
+        }
+        if res.macro_slip_detected {
+            macro_any = true;
+        }
+        if res.rotational_slip_detected {
+            rot_any = true;
+        }
+        if res.margin < min_margin {
+            min_margin = res.margin;
+        }
+        sum_mu += res.estimated_mu;
+    }
+
+    let avg_mu = if patches.is_empty() {
+        state.static_friction_coeff
+    } else {
+        sum_mu / patches.len() as f32
+    };
+
+    C_GraspResult {
+        micro_slip_detected: micro_any,
+        macro_slip_detected: macro_any,
+        rotational_slip_detected: rot_any,
+        commanded_force: state.normal_force,
+        margin: min_margin,
+        estimated_mu: avg_mu,
+    }
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct C_HandTendonState {
+    pub q_mcp: [f32; N_HAND_FINGERS],
+    pub q_pip: [f32; N_HAND_FINGERS],
+    pub q_dip: [f32; N_HAND_FINGERS],
+    pub qdot_mcp: [f32; N_HAND_FINGERS],
+    pub qdot_pip: [f32; N_HAND_FINGERS],
+    pub qdot_dip: [f32; N_HAND_FINGERS],
+    pub tendon_stretch_m: f32,
+    pub tendon_tension_n: f32,
+    pub opposition_rad: f32,
+    pub object_span_m: f32,
+    pub commanded_close_rad: f32,
+    pub pad_normal_n: f32,
+    pub normal_force: f32,
+    pub slip_velocity: f32,
+    pub slip_angular_velocity: f32,
+    pub object_mass: f32,
+    pub static_friction_coeff: f32,
+    pub dynamic_friction_coeff: f32,
+    pub reflex_active: bool,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct C_HandTendonResult {
+    pub tendon_overstretch: bool,
+    pub pad_slip: bool,
+    pub commanded_force: f32,
+    pub margin: f32,
+    pub tendon_tension_n: f32,
+    pub pad_normal_n: f32,
+    pub stretch_m: f32,
+    pub strain: f32,
+}
+
+#[inline]
+fn hand_chain_length_m() -> f32 {
+    PHALANGE_PROXIMAL_M + PHALANGE_INTERMEDIATE_M + PHALANGE_DISTAL_M
+}
+
+#[inline]
+pub fn hand_contact_q_sum_max(object_span_m: f32) -> f32 {
+    let span_ratio = (object_span_m / hand_chain_length_m()).clamp(0.08, 1.0);
+    (1.0 - span_ratio) * 2.55 + 0.22
+}
+
+#[inline]
+fn pad_com_offset_m(finger: usize, q_mcp: f32, q_pip: f32, q_dip: f32, opposition_rad: f32) -> [f32; 3] {
+    let s1 = q_mcp.sin();
+    let s2 = (q_mcp + q_pip).sin();
+    let s3 = (q_mcp + q_pip + q_dip).sin();
+    let reach =
+        PHALANGE_PROXIMAL_M * s1 + PHALANGE_INTERMEDIATE_M * s2 + PHALANGE_DISTAL_M * s3;
+    let lateral = if finger == 0 {
+        -0.032 * opposition_rad.sin()
+    } else {
+        (finger as f32 - 2.5) * 0.018
+    };
+    [lateral, 0.0, reach * 0.25]
+}
+
+pub fn evaluate_hand_tendon_dynamics(state: &mut C_HandTendonState, dt: f32) -> C_HandTendonResult {
+    let dt = dt.max(1e-6);
+    let q_sum_max = hand_contact_q_sum_max(state.object_span_m);
+    let pinch = state.opposition_rad.sin().clamp(0.18, 1.0);
+
+    let q_des_sum = state.commanded_close_rad * 2.18;
+    let excess_q = (q_des_sum - q_sum_max).max(0.0);
+    let blocked_stretch = TENDON_MOMENT_ARM_M * excess_q;
+    let working_n = (state.commanded_close_rad / 1.40 * GRASP_CLAMP_N * pinch).clamp(0.0, GRASP_CLAMP_N);
+    let working_stretch = working_n / TENDON_STIFFNESS_N_PER_M.max(1.0);
+    let stretch = working_stretch + blocked_stretch;
+    state.tendon_stretch_m = stretch;
+    state.tendon_tension_n = (TENDON_STIFFNESS_N_PER_M * stretch).max(0.0);
+    let strain = stretch / TENDON_REST_LENGTH_M;
+    let tendon_overstretch = blocked_stretch / TENDON_REST_LENGTH_M > TENDON_STRAIN_WARN;
+
+    let t_tau = state.tendon_tension_n * TENDON_MOMENT_ARM_M;
+    for f in 0..N_HAND_FINGERS {
+        let close_scale = if f == 0 {
+            0.82
+        } else {
+            1.0 - 0.03 * f as f32
+        };
+        let q_des_mcp = state.commanded_close_rad * close_scale
+            + if f == 0 {
+                0.20 * state.opposition_rad
+            } else {
+                0.0
+            };
+        let q_des_pip = state.commanded_close_rad * 0.70 * close_scale;
+        let q_des_dip = state.commanded_close_rad * 0.48 * close_scale;
+
+        let tau_mcp =
+            t_tau + HAND_JOINT_KP * (q_des_mcp - state.q_mcp[f]) - HAND_JOINT_KD * state.qdot_mcp[f];
+        let tau_pip =
+            t_tau + HAND_JOINT_KP * (q_des_pip - state.q_pip[f]) - HAND_JOINT_KD * state.qdot_pip[f];
+        let tau_dip =
+            t_tau + HAND_JOINT_KP * (q_des_dip - state.q_dip[f]) - HAND_JOINT_KD * state.qdot_dip[f];
+
+        state.qdot_mcp[f] += (tau_mcp / HAND_JOINT_INERTIA) * dt;
+        state.qdot_pip[f] += (tau_pip / HAND_JOINT_INERTIA) * dt;
+        state.qdot_dip[f] += (tau_dip / HAND_JOINT_INERTIA) * dt;
+        state.q_mcp[f] += state.qdot_mcp[f] * dt;
+        state.q_pip[f] += state.qdot_pip[f] * dt;
+        state.q_dip[f] += state.qdot_dip[f] * dt;
+
+        let q_sum = state.q_mcp[f] + state.q_pip[f] + state.q_dip[f];
+        if q_sum > q_sum_max {
+            let scale = q_sum_max / q_sum.max(1e-6);
+            state.q_mcp[f] *= scale;
+            state.q_pip[f] *= scale;
+            state.q_dip[f] *= scale;
+            state.qdot_mcp[f] = state.qdot_mcp[f].min(0.0);
+            state.qdot_pip[f] = state.qdot_pip[f].min(0.0);
+            state.qdot_dip[f] = state.qdot_dip[f].min(0.0);
+        }
+        state.q_mcp[f] = state.q_mcp[f].clamp(0.0, 1.6);
+        state.q_pip[f] = state.q_pip[f].clamp(0.0, 1.8);
+        state.q_dip[f] = state.q_dip[f].clamp(0.0, 1.4);
+        state.qdot_mcp[f] = state.qdot_mcp[f].clamp(-25.0, 25.0);
+        state.qdot_pip[f] = state.qdot_pip[f].clamp(-25.0, 25.0);
+        state.qdot_dip[f] = state.qdot_dip[f].clamp(-25.0, 25.0);
+    }
+
+    let pad_normal = working_n;
+    state.pad_normal_n = pad_normal;
+    state.normal_force = pad_normal;
+
+    let n_taxel = pad_normal / (16.0 * N_FINGER_PATCHES as f32);
+    let shear_load = (state.object_mass * 9.81) / (16.0 * N_FINGER_PATCHES as f32);
+    let mut patches = [FingerPatch {
+        array: C_TactileArray {
+            taxels: [Taxel {
+                normal: n_taxel,
+                shear_x: 0.0,
+                shear_y: 0.0,
+            }; 16],
+        },
+        com_offset_m: [0.0, 0.0, 0.0],
+    }; N_FINGER_PATCHES];
+    for p in 0..N_FINGER_PATCHES {
+        patches[p].com_offset_m = pad_com_offset_m(
+            p,
+            state.q_mcp[p],
+            state.q_pip[p],
+            state.q_dip[p],
+            state.opposition_rad,
+        );
+        for i in 0..16 {
+            patches[p].array.taxels[i].shear_x =
+                shear_load * (1.0 + 0.08 * (i as f32 % 4.0) + 0.04 * p as f32);
+            patches[p].array.taxels[i].shear_y = shear_load * 0.12 * (i as f32 / 4.0);
+        }
+    }
+
+    let mut grasp = C_GraspState {
+        normal_force: state.normal_force,
+        slip_velocity: state.slip_velocity,
+        slip_angular_velocity: state.slip_angular_velocity,
+        object_mass: state.object_mass,
+        static_friction_coeff: state.static_friction_coeff,
+        dynamic_friction_coeff: state.dynamic_friction_coeff,
+        reflex_active: state.reflex_active,
+    };
+    let slip_before = grasp.slip_velocity;
+    let res = evaluate_multi_patch_grasp(&patches, &mut grasp, dt);
+    if res.macro_slip_detected {
+        grasp.slip_velocity = (slip_before + (1.0 - res.margin) * 6.0 * dt).clamp(0.0, 0.85);
+    } else {
+        let decayed = slip_before * (-8.0 * dt).exp();
+        grasp.slip_velocity = if decayed.abs() < 1e-4 { 0.0 } else { decayed };
+    }
+    grasp.normal_force = grasp.normal_force.min(GRASP_CLAMP_N);
+
+    state.normal_force = grasp.normal_force;
+    state.slip_velocity = grasp.slip_velocity;
+    state.slip_angular_velocity = grasp.slip_angular_velocity;
+    state.static_friction_coeff = grasp.static_friction_coeff;
+    state.dynamic_friction_coeff = grasp.dynamic_friction_coeff;
+    state.reflex_active = grasp.reflex_active;
+
+    let pad_slip = res.macro_slip_detected || state.slip_velocity.abs() > 0.005;
+
+    C_HandTendonResult {
+        tendon_overstretch,
+        pad_slip,
+        commanded_force: state.normal_force,
+        margin: res.margin,
+        tendon_tension_n: state.tendon_tension_n,
+        pad_normal_n: state.pad_normal_n,
+        stretch_m: state.tendon_stretch_m,
+        strain,
     }
 }
 
