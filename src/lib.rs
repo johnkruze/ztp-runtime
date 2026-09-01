@@ -706,6 +706,52 @@ pub extern "C" fn ztp_marine_evaluate_state(depth_m: f32, time_step: f32) -> C_M
 }
 
 
+/* Tesseract IMU firewall. Host dt=0.001. Resonator ω_n is 100 Hz.
+   Not machine.c. Body 12 last-state is not this sitting.
+   Bias is in the Euler. drive_velocity_m_s is sense-axis speed for F_c. */
+pub use crate::domains::tesseract::{
+    C_TesseractState, C_TesseractTick, ZTP_OK, ZTP_PHYSICAL_ANOMALY,
+};
+
+#[no_mangle]
+pub extern "C" fn ztp_tesseract_step(
+    state: *mut C_TesseractState,
+    inertial_accel: f64,
+    omega_ext_rad_s: f64,
+    x_cmd_m: f64,
+    v_cmd_m_s: f64,
+    k_p: f64,
+    k_d: f64,
+    bias_m_s2: f64,
+    drive_velocity_m_s: f64,
+    dt: f64,
+    tick: *mut C_TesseractTick,
+) -> i32 {
+    if state.is_null() {
+        return ZTP_PHYSICAL_ANOMALY;
+    }
+    let (code, result) = unsafe {
+        crate::domains::tesseract::step_tesseract(
+            &mut *state,
+            inertial_accel,
+            omega_ext_rad_s,
+            x_cmd_m,
+            v_cmd_m_s,
+            k_p,
+            k_d,
+            bias_m_s2,
+            drive_velocity_m_s,
+            dt,
+        )
+    };
+    if !tick.is_null() {
+        unsafe {
+            *tick = result;
+        }
+    }
+    code
+}
+
 // ─── UNIT TESTS ──────────────────────────────────────────────────
 
 #[cfg(test)]

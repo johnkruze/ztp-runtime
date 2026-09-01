@@ -52,6 +52,7 @@ All entry points are `#[no_mangle] extern "C"` in `src/lib.rs`. That source is t
 | `ztp_drone_step` | Multirotor step |
 | `ztp_bluerov_step` | UUV / ROV step |
 | `ztp_marine_evaluate_state` | Mackenzie / hydrostatic / Snell (64 B) |
+| `ztp_tesseract_step` | Duffing IMU firewall (host dt=0.001; ω_n 100 Hz; 64 B orb; PHYSICAL_ANOMALY freeze) |
 | `ztp_directed_energy_step` | Gimbal / jitter |
 | `ztp_terran_evaluate_contact` | Soil contact |
 | `ztp_orbital_step_6dof` | Orbital translation |
@@ -77,6 +78,7 @@ All entry points are `#[no_mangle] extern "C"` in `src/lib.rs`. That source is t
 | `drone` | Multirotor dynamics step |
 | `bluerov` | Underwater ROV step |
 | `marine` | Mackenzie 1981, ρgz, thermocline Snell |
+| `tesseract` | Duffing IMU firewall (host dt=0.001; ω_n 100 Hz; 64 B orb) |
 | `atheric` | Friis / Shannon / hop seed |
 | `terran` | Boussinesq soil contact |
 | `orbital` | 6DOF + quaternion attitude |

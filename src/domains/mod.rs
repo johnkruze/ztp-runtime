@@ -8,5 +8,4 @@ pub mod drone;
 pub mod bluerov;
 pub mod marine;
 pub mod compounding;
-
-
+pub mod tesseract; /* IMU firewall — Duffing + Coriolis + hold. Host dt=0.001. */
