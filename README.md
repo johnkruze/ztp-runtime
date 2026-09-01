@@ -36,8 +36,6 @@ cargo build --release
 python3 examples/python/vla_somatic_bridge.py
 ```
 
-C eval box is `grokd/public/ztp-runtime-eval/` — `cd examples && make help && make check`. One dylib, many clocks (grasp 1 kHz · orbit 100 Hz · plasma 20 Hz · hypha 10 Hz · confine 1 µs).
-
 ---
 
 ## C FFI
