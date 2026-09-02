@@ -1,10 +1,12 @@
 # from examples/c, after: cd ../.. && cargo build --release
 # macOS dylib rpath → ../../target/release
+# Hz is the body's. Grasp is not hypha is not tesseract.
 CC ?= cc
 CFLAGS ?= -O2 -Wall
 UNAME := $(shell uname)
 INCDIR := ../../include
 LIBDIR := ../../target/release
+BINS := hold tissue hypha tesseract
 
 ifeq ($(UNAME),Darwin)
   LIB := $(LIBDIR)/libztp_runtime.dylib
@@ -15,10 +17,26 @@ else
 endif
 
 .PHONY: all check clean
-all: hold
+all: $(BINS)
+
 hold: hold.c $(INCDIR)/ztp.h
 	$(CC) $(CFLAGS) -o hold hold.c -I$(INCDIR) -L$(LIBDIR) -lztp_runtime $(RPATH)
-check: hold
+
+tissue: tissue.c $(INCDIR)/ztp.h
+	$(CC) $(CFLAGS) -o tissue tissue.c -I$(INCDIR) -L$(LIBDIR) -lztp_runtime $(RPATH)
+
+hypha: hypha.c $(INCDIR)/ztp.h
+	$(CC) $(CFLAGS) -o hypha hypha.c -I$(INCDIR) -L$(LIBDIR) -lztp_runtime $(RPATH)
+
+tesseract: tesseract.c $(INCDIR)/ztp.h
+	$(CC) $(CFLAGS) -o tesseract tesseract.c -I$(INCDIR) -L$(LIBDIR) -lztp_runtime $(RPATH) -lm
+
+check: $(BINS)
+	mkdir -p ../../soma
 	./hold
+	./tissue
+	./hypha
+	./tesseract
+
 clean:
-	rm -f hold
+	rm -f $(BINS)

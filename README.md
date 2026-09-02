@@ -1,18 +1,17 @@
-# ztp-runtime — the Reflex
+# ztp-runtime — computational physics on the device
 
-**On-device loop for a VLA / GNC planner.** Zero crate dependencies. Pure Rust stdlib. Compiles to a C library you load next to the motor. Hz is the body’s: grasp is 1 kHz, plasma is 20 Hz, confine is 1 µs.
+One C library. Many clocks. Hz is the body’s: grasp is 1 kHz, hypha is 10 Hz, tesseract’s host firewall is 1 kHz (resonator ω_n is 100 Hz). You load a dylib next to the motor. Last-state is 64 bytes when the radio is dead.
 
-Your policy thinks at 5–50 Hz. Grasp slip happens in ~2 ms. This crate is the thing that catches it — and the other bodies at their own dt.
+The planner is the **caller** (5–50 Hz). It is not this crate. A VLA / GNC policy thinks too slowly for contact. This is the loop that still has a law when that policy is late.
 
 ```
-VLA / GNC  (5–50 Hz)     ztp-runtime  (body Hz)     actuator
-      intent      →      friction / stop / force     →   metal
-                         projection on-die
+planner (5–50 Hz)     ztp-runtime (body Hz)     actuator
+     intent      →      friction / stop / force     →   metal
 ```
 
-Sibling: [genesis-core](https://github.com/johnkruze/genesis-core) is the **Forge** (sealed failure-boundary Monte Carlo). This crate is the thin **Reflex** only. Do not merge them.
+Sibling: [genesis-core](https://github.com/johnkruze/genesis-core) is the **Forge** (sealed demonstration banks). This crate is the thin **Reflex** only. Do not merge them.
 
-[zerotrustphysics.com](https://zerotrustphysics.com) · commercial: [Reflex Runtime eval](https://zerotrustphysics.com/offerings#reflex)
+[zerotrustphysics.com](https://zerotrustphysics.com)
 
 ---
 
@@ -27,25 +26,27 @@ cargo build --release
 cargo run --release    # microbench
 ```
 
-Release profile: `opt-level=3`, LTO, `codegen-units=1`, `panic=abort`, strip.
+Release profile: `opt-level=3`, LTO, `codegen-units=1`, `panic=abort`, strip. Zero crate dependencies. Pure Rust stdlib.
 
-### Compile Monday (grasp)
+---
 
-12 N policy. 1000 Hz reflex. 45 N clamp. Classical friction cone.
-
-```bash
-cargo build --release
-cd examples/c && make && ./hold
-```
-
-Law: `src/domains/dexterous.rs` `evaluate_grasp_dynamics` · export `ztp_dexterous_evaluate_grasp`. Clock 1 kHz. Header: `include/ztp.h`. This is the loop on the metal, not taxel-timeseries data.
-
-Demo the VLA gap (Python ctypes, this crate):
+## Compile Monday (four targets)
 
 ```bash
 cargo build --release
-python3 examples/python/vla_somatic_bridge.py
+cd examples/c && make check
 ```
+
+| target | clock | what it proves |
+|--------|-------|----------------|
+| `./hold` | 1 kHz | 12 N policy, 45 N clamp, friction cone |
+| `./tissue` | 1 kHz | 1.2 N liver. Jaw freezes. Sample is not a payload. |
+| `./hypha` | 10 Hz | Kirchhoff. `sizeof(ZtpMycelialState)==64` |
+| `./tesseract` | host 1 kHz | Duffing IMU firewall. `Fc_tether/Fc_lin=70.0` |
+
+Grasp is not hypha is not tesseract. Header: `include/ztp.h`. Map: `examples/c/README.md`.
+
+A Python ctypes demo of a late planner calling grasp (`examples/python/vla_somatic_bridge.py`) is a **caller example**. It is not the face of this crate.
 
 ---
 
@@ -105,6 +106,7 @@ All entry points are `#[no_mangle] extern "C"` in `src/lib.rs`. That source is t
 | `tokamak` | MHD bottle (1 µs) |
 | `swing` | Grid rotor (1 ms) |
 | `mycelial` | Kirchhoff hyphae (10 Hz) |
+| `tesseract` | Duffing IMU firewall (host 1 kHz) |
 
 `lib.rs` also carries a deterministic LCG and a hand-rolled SHA-256 ProofChain (no `sha2` crate).
 

@@ -1,13 +1,20 @@
-# hold — 12 N policy. 1000 Hz reflex. 45 N clamp.
+# C choir — one dylib, four clocks
 
-Classical friction cone on the metal. Not taxel-timeseries data. The loop.
+Hz is the body’s. Grasp is not hypha is not tesseract.
+
+| target | clock | dt | ethic |
+|--------|-------|----|-------|
+| `hold` | 1 kHz | 0.001 s | do not drop the part (45 N clamp) |
+| `tissue` | 1 kHz | 0.001 s | do not destroy the sample (1.2 N liver) |
+| `hypha` | 10 Hz | 0.1 s | Kirchhoff. Health conducts. |
+| `tesseract` | host 1 kHz | 0.001 s | IMU firewall. Resonator ω_n is 100 Hz. |
 
 ```
 cd ztp-runtime
 cargo build --release
-cd examples/c && make && ./hold
+cd examples/c && make check
 ```
 
-Law: `src/domains/dexterous.rs` `evaluate_grasp_dynamics` · export `ztp_dexterous_evaluate_grasp`. Clock 1 kHz. Public header: `include/ztp.h`.
+Header: `include/ztp.h`. Law lives in `src/domains/`. Public `run:` is these four targets.
 
-`./hold` starts at 12 N, μ 0.22, 0.80 kg, hostile shear. Reflex ramps force; clamp 45 N. Expected class: F leaves 12 N, F ≤ 45 N.
+`hypha` writes `ztp-runtime/soma/mycelial_terminal.soma.bin` (body 8 peek). Tissue has no dedicated last-state body. Tesseract live orb is 8×f64 RAM; body 12 file is a named peek, not this binary.

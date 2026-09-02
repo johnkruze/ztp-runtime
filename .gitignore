@@ -1,5 +1,9 @@
 target/
 examples/c/hold
+examples/c/tissue
+examples/c/hypha
+examples/c/tesseract
+soma/
 examples/python/*.png
 examples/python/*.parquet
 __pycache__/
