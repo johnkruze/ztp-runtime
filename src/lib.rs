@@ -1244,8 +1244,38 @@ pub extern "C" fn ztp_last_state_pack_vehicle(
     )
 }
 
+#[no_mangle]
+pub extern "C" fn ztp_last_state_pack_tesseract(
+    t_s: f64,
+    peak_disp_m: f32,
+    well_velocity_m_s: f32,
+    drive_velocity_m_s: f32,
+    alpha: f32,
+    bias_m_s2: f32,
+    omega_ext_rad_s: f32,
+    scale_factor_n: f32,
+    bias_floor_m: f32,
+    is_nonlinear_drive: bool,
+    is_bias_floor_broken: bool,
+) -> C_LastStateFrame {
+    crate::domains::last_state::pack_tesseract(
+        t_s,
+        peak_disp_m,
+        well_velocity_m_s,
+        drive_velocity_m_s,
+        alpha,
+        bias_m_s2,
+        omega_ext_rad_s,
+        scale_factor_n,
+        bias_floor_m,
+        is_nonlinear_drive,
+        is_bias_floor_broken,
+    )
+}
+
 /* Tesseract IMU firewall. Host dt=0.001. Resonator ω_n is 100 Hz.
-   Not machine.c. Body 12 last-state is not this sitting.
+   Not machine.c. Body 12 last-state file is this sitting (tesseract_terminal.soma.bin).
+   Live orb C_TesseractState remains 8×f64 RAM — not the file.
    Bias is in the Euler. drive_velocity_m_s is sense-axis speed for F_c. */
 pub use crate::domains::tesseract::{
     C_TesseractState, C_TesseractTick, ZTP_OK, ZTP_PHYSICAL_ANOMALY,

@@ -2,7 +2,8 @@
 //!
 //! Host dt = 0.001 (chassis firewall). Resonator clock is ω_n (100 Hz on
 //! the sealed bank). This is not a 1000 Hz constitutive look.
-//! Not machine.c. Body 12 last-state is not this sitting.
+//! Not machine.c. Body 12 last-state file is this sitting (`tesseract_terminal.soma.bin`).
+//! Live orb `C_TesseractState` is still 8×f64 RAM — not the file.
 //!
 //! Forge twin: `physics/tesseract.rs`. Same Euler so α = 0 is Cluster D.
 //! Bias enters the well: total_accel = a + b + u + spring + damp + cubic.
@@ -24,7 +25,7 @@ pub const LOCK_LOSS_M: f64 = 0.05;
 /// Control saturation [m/s²].
 pub const HOLD_U_SAT_M_S2: f64 = 800.0;
 
-/// 8 × f64 = 64 B live orb. Not a last-state pack. Do not steal body 12.
+/// 8 × f64 = 64 B live orb. Not the last-state file. File is body 12.
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
 pub struct C_TesseractState {

@@ -10,6 +10,7 @@ pub const BODY_VEHICLE: u16 = 9; /* STREAM2 Pacejka chassis / hydroplane */
 pub const BODY_MYCELIAL: u16 = 8; /* STREAM1 mycelial Kirchhoff terminal */
 pub const BODY_PLASMA: u16 = 10; /* STREAM3 reentry / plasma */
 pub const BODY_FUSION: u16 = 11; /* STREAM4 fusion tokamak/pit terminal */
+pub const BODY_TESSERACT: u16 = 12; /* Duffing IMU file pinout — not the 8×f64 orb */
 pub const BODY_GRASP: u16 = 28;
 pub const BODY_HUMANOID: u16 = 30;
 pub const BODY_HAND: u16 = 31;
@@ -36,6 +37,9 @@ pub const FLAG_PLASMA_MISS: u64 = 1 << 1;
 pub const FLAG_PLASMA_GPS_HELD: u64 = 1 << 2;
 pub const FLAG_COMPOUNDING_POTENCY_COLLAPSED: u64 = 1 << 0; /* STREAM5 body 32 */
 pub const FLAG_COMPOUNDING_DISSOLUTION_STALLED: u64 = 1 << 1;
+pub const FLAG_TESSERACT_NONLINEAR: u64 = 1 << 0; /* body 12 */
+pub const FLAG_TESSERACT_FLOOR: u64 = 1 << 1;
+pub const FLAG_TESSERACT_ANOMALY: u64 = 1 << 2; /* both: PHYSICAL_ANOMALY freeze */
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -552,6 +556,62 @@ pub fn pack_vehicle(
     }
 }
 
+/// Body 12 tesseract file slots. Live orb is 8×f64 RAM — not this file.
+/// pos = peak_disp_m / well ẋ / drive_velocity_m_s (sense-axis).
+/// vel = alpha / bias_m_s2 / omega_ext_rad_s.
+/// force_torque = scale_factor_n. residual = bias_floor_m.
+/// Flags bit0 nonlinear · bit1 floor · bit2 both (PHYSICAL_ANOMALY).
+/// Parquet v1.1 holes (well ẋ, bias, Ω) pack as 0.0. peak_disp_m stands in for x.
+pub fn pack_tesseract(
+    t_s: f64,
+    peak_disp_m: f32,
+    well_velocity_m_s: f32,
+    drive_velocity_m_s: f32,
+    alpha: f32,
+    bias_m_s2: f32,
+    omega_ext_rad_s: f32,
+    scale_factor_n: f32,
+    bias_floor_m: f32,
+    is_nonlinear_drive: bool,
+    is_bias_floor_broken: bool,
+) -> C_LastStateFrame {
+    let mut flags = 0u64;
+    if is_nonlinear_drive {
+        flags |= FLAG_TESSERACT_NONLINEAR;
+    }
+    if is_bias_floor_broken {
+        flags |= FLAG_TESSERACT_FLOOR;
+    }
+    if is_nonlinear_drive && is_bias_floor_broken {
+        flags |= FLAG_TESSERACT_ANOMALY;
+    }
+    let pos = [peak_disp_m, well_velocity_m_s, drive_velocity_m_s];
+    let vel = [alpha, bias_m_s2, omega_ext_rad_s];
+    let mut h = crate::crypto::Sha256::new();
+    h.update(&t_s.to_le_bytes());
+    for f in &pos {
+        h.update(&f.to_le_bytes());
+    }
+    for f in &vel {
+        h.update(&f.to_le_bytes());
+    }
+    h.update(&scale_factor_n.to_le_bytes());
+    h.update(&bias_floor_m.to_le_bytes());
+    h.update(&flags.to_le_bytes());
+    let digest = h.finalize();
+    let mut proof = [0u8; 16];
+    proof.copy_from_slice(&digest[..16]);
+    C_LastStateFrame {
+        t: t_s,
+        pos,
+        vel,
+        force_torque: scale_factor_n,
+        residual: bias_floor_m,
+        flags,
+        proof,
+    }
+}
+
 fn frame_to_bytes(frame: C_LastStateFrame) -> [u8; 64] {
     unsafe { core::mem::transmute(frame) }
 }
@@ -622,6 +682,23 @@ mod tests {
         assert_eq!(&file[0..4], b"SOMA");
         let body = u16::from_le_bytes([file[6], file[7]]);
         assert_eq!(body, BODY_VEHICLE);
+        assert_ne!(&file[64..68], b"SOMA");
+    }
+
+    #[test]
+    fn tesseract_file_has_header_body_id_and_frame_digest() {
+        let frame = pack_tesseract(
+            0.0004, 0.016202, 0.0, 0.87, 0.0, 0.0, 0.0, 0.0, 0.073198, false, true,
+        );
+        assert!((frame.pos[0] - 0.016202).abs() < 1e-5);
+        assert!((frame.pos[2] - 0.87).abs() < 1e-5);
+        assert_eq!(frame.flags & FLAG_TESSERACT_NONLINEAR, 0);
+        assert_eq!(frame.flags & FLAG_TESSERACT_FLOOR, FLAG_TESSERACT_FLOOR);
+        assert_eq!(frame.flags & FLAG_TESSERACT_ANOMALY, 0);
+        let file = write_soma_file(BODY_TESSERACT, *b"TESSERA1", &[frame]);
+        assert_eq!(&file[0..4], b"SOMA");
+        let body = u16::from_le_bytes([file[6], file[7]]);
+        assert_eq!(body, BODY_TESSERACT);
         assert_ne!(&file[64..68], b"SOMA");
     }
 }
