@@ -30,7 +30,7 @@ Release profile: `opt-level=3`, LTO, `codegen-units=1`, `panic=abort`, strip. Ze
 
 ---
 
-## Compile Monday (four targets)
+## Compile Monday
 
 ```bash
 cargo build --release
@@ -43,10 +43,12 @@ cd examples/c && make check
 | `./tissue` | 1 kHz | 1.2 N liver. Jaw freezes. Sample is not a payload. |
 | `./hypha` | 10 Hz | Kirchhoff. `sizeof(ZtpMycelialState)==64` |
 | `./tesseract` | host 1 kHz | Duffing IMU firewall. `Fc_tether/Fc_lin=70.0` |
+| `./ocean` | 1 kHz tick | Mackenzie named sea. Not 1500. `c ~ 1517` m/s at 100 m |
+| `./peek` | syscall | Last-state. Magic `SOMA`. 64 B when the radio is dead |
 
-Grasp is not hypha is not tesseract. Header: `include/ztp.h`. Map: `examples/c/README.md`.
+Grasp is not hypha is not tesseract is not ocean. Header: `include/ztp.h`. Map: `examples/c/README.md`.
 
-A Python ctypes demo of a late planner calling grasp (`examples/python/vla_somatic_bridge.py`) is a **caller example**. It is not the face of this crate.
+Still computational physics on the device. The planner is the **caller**.
 
 ---
 

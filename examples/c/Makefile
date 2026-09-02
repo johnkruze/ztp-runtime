@@ -6,7 +6,7 @@ CFLAGS ?= -O2 -Wall
 UNAME := $(shell uname)
 INCDIR := ../../include
 LIBDIR := ../../target/release
-BINS := hold tissue hypha tesseract
+BINS := hold tissue hypha tesseract ocean peek
 
 ifeq ($(UNAME),Darwin)
   LIB := $(LIBDIR)/libztp_runtime.dylib
@@ -31,12 +31,20 @@ hypha: hypha.c $(INCDIR)/ztp.h
 tesseract: tesseract.c $(INCDIR)/ztp.h
 	$(CC) $(CFLAGS) -o tesseract tesseract.c -I$(INCDIR) -L$(LIBDIR) -lztp_runtime $(RPATH) -lm
 
+ocean: ocean.c $(INCDIR)/ztp.h
+	$(CC) $(CFLAGS) -o ocean ocean.c -I$(INCDIR) -L$(LIBDIR) -lztp_runtime $(RPATH)
+
+peek: peek.c $(INCDIR)/ztp.h
+	$(CC) $(CFLAGS) -o peek peek.c -I$(INCDIR) -L$(LIBDIR) -lztp_runtime $(RPATH)
+
 check: $(BINS)
 	mkdir -p ../../soma
 	./hold
 	./tissue
 	./hypha
 	./tesseract
+	./ocean
+	./peek
 
 clean:
 	rm -f $(BINS)

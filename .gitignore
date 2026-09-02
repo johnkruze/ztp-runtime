@@ -3,6 +3,8 @@ examples/c/hold
 examples/c/tissue
 examples/c/hypha
 examples/c/tesseract
+examples/c/ocean
+examples/c/peek
 soma/
 examples/python/*.png
 examples/python/*.parquet
