@@ -1,4 +1,5 @@
 target/
+examples/c/hold
 examples/python/*.png
 examples/python/*.parquet
 __pycache__/

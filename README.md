@@ -29,6 +29,17 @@ cargo run --release    # microbench
 
 Release profile: `opt-level=3`, LTO, `codegen-units=1`, `panic=abort`, strip.
 
+### Compile Monday (grasp)
+
+12 N policy. 1000 Hz reflex. 45 N clamp. Classical friction cone.
+
+```bash
+cargo build --release
+cd examples/c && make && ./hold
+```
+
+Law: `src/domains/dexterous.rs` `evaluate_grasp_dynamics` · export `ztp_dexterous_evaluate_grasp`. Clock 1 kHz. Header: `include/ztp.h`. This is the loop on the metal, not taxel-timeseries data.
+
 Demo the VLA gap (Python ctypes, this crate):
 
 ```bash
